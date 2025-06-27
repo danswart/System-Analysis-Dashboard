@@ -1,0 +1,163 @@
+---
+title: "Manually Standardize Data and Pivot Longer"
+format: html
+---
+
+
+***COMMENT OUT ALL 'SAVE' FUNCTIONS BELOW BEFORE PROCESSING ANYTHING***
+
+
+## ✅   The Data Pipeline 
+
+
+Raw Data → Cleaning Script → Standardized Format: e.g., date, value, campus, metric, etc ...
+
+
+The date, value, categories structure make all chart code more intuitive.
+For example: 
+
+Run Charts: aes(x = date, y = value)  
+Line Charts: aes(x = date, y = value, color = campus)  
+Control Charts: Same structure + control limits  
+Cohort Analysis: group_by() any categorical column  
+
+
+## 1. Load function for later use in this manual pipeline
+
+```{r}
+#| message: false
+#| warning: false
+#| paged-print: false
+
+# My exploration function - helpful for complex datasets
+explore_my_data <- function(data) {
+  cat("=== MY DATA CHECK ===\n")
+  cat("Dimensions:", nrow(data), "rows x", ncol(data), "columns\n")
+  cat("File size:", format(object.size(data), units = "MB"), "\n")
+  cat("Columns:", paste(names(data), collapse = ", "), "\n\n")
+  
+  head(data)
+  glimpse(data)
+
+  
+  # Extra useful for complex data:
+  cat("\nMissing values per column:\n")
+  missing_summary <- sapply(data, function(x) sum(is.na(x)))
+  print(missing_summary[missing_summary > 0])  # Only show columns with missing data
+  
+  cat("\nData types summary:\n")
+  print(table(sapply(data, class)))
+  
+}
+
+
+# Use it:
+# explore_my_data(raw_data)
+```
+
+
+
+
+### 2. Load libraries
+
+```{r}
+#| message: false
+#| warning: false
+#| paged-print: false
+
+library(dplyr)
+library(readr)
+library(janitor)
+library(tibble)
+library(tidyverse)
+library(lubridate)
+
+```
+
+### 3. Load data (likely in WIDE format)
+
+```{r}
+
+raw_data <- read_csv("data/2024-25 Weekly Atten. Percentage 5.27.25 thru 5.30.25 WIDE.csv", show_col_types = FALSE)
+
+```
+
+### 4. Quick exploration using the function defined above
+
+```{r}
+
+explore_my_data(raw_data)   # function created in this manual pipeline
+
+```
+
+### 5. Tidy column names
+
+```{r}
+# clean names
+man_standardized_data <- raw_data %>%
+  janitor::clean_names()
+
+```
+
+### 6. Convert char column to date column.  Rearrange columns and eliminate any transitional columns no longer needed.
+
+```{r}
+man_standardized_data <- man_standardized_data %>%
+  mutate(
+    start_date_str = str_extract(date, "^[A-Za-z]+ ?\\d+"),
+    start_date_str = str_replace(start_date_str, "([A-Za-z]+)(\\d+)", "\\1 \\2"),
+    year = if_else(
+      str_detect(start_date_str, "^(Jan|Feb|Mar|Apr|May)"), 
+      2025, 
+      2024
+    ),
+    date_parsed = mdy(paste(start_date_str, year))
+  ) %>%
+  arrange(date_parsed) %>%
+  # Remove unwanted columns and rename date_parsed to date
+  select(-date, -start_date_str, -year) %>%
+  rename(date = date_parsed) %>%
+  relocate(date, .before = everything())
+
+```
+
+### 7. Pivot Longer
+
+```{r}
+
+man_standardized_data_long <- man_standardized_data %>%
+ pivot_longer(
+    cols = -date,
+    names_to = "campus", 
+    values_to = "value"
+    ) %>%
+  select(date, value, campus
+  )
+
+```
+
+
+### 8. Verify the results
+
+```{r}
+
+glimpse(man_standardized_data_long)
+head(man_standardized_data_long)
+
+```
+
+
+### 9.  Use this automated save function
+
+
+```{r}
+
+# # Make automated functions available for automated data cleaning
+# source("automated_data_cleaning_functions.r")
+# 
+# 
+# # Use the automated function
+# save_cleaned_data(man_standardized_data_long, "data/man_standardized_2024-08-15_thru_2025-05-30_weekly_attendance-LONG.csv"
+#                    )
+
+```
