@@ -1,6 +1,5 @@
-# Ultimate EDA Shiny App - Complete Version with Fixed NA Handling
-# Clean, working version with Run Chart, Line Chart, Bar Chart, and EXPECTATION CHARTS
-# FIXED: NA handling for missing data years and renamed Control Charts to Expectation Charts
+# System Analysis Dashboard - FIXED DATA PROCESSING VERSION
+# Fixed the 'trim' argument warning by improving data validation and processing
 
 library(shiny)
 library(DT)
@@ -12,6 +11,144 @@ library(ggtext)
 library(purrr)
 library(lubridate)
 library(scales)
+
+# IMPROVED: Safe numeric conversion function
+safe_numeric <- function(x) {
+  if(is.numeric(x)) return(x)
+
+  # Convert to numeric and handle warnings gracefully
+  result <- suppressWarnings(as.numeric(as.character(x)))
+
+  # If all values are NA after conversion, return original
+  if(all(is.na(result)) && !all(is.na(x))) {
+    warning(paste("Could not convert to numeric:", class(x)[1]))
+    return(as.numeric(rep(NA, length(x))))
+  }
+
+  return(result)
+}
+
+# IMPROVED: Safe statistical calculations
+safe_mean <- function(x, na.rm = TRUE) {
+  x_clean <- safe_numeric(x)
+  if(length(x_clean[!is.na(x_clean)]) == 0) return(NA)
+  return(mean(x_clean, na.rm = na.rm))
+}
+
+safe_median <- function(x, na.rm = TRUE) {
+  x_clean <- safe_numeric(x)
+  if(length(x_clean[!is.na(x_clean)]) == 0) return(NA)
+  return(median(x_clean, na.rm = na.rm))
+}
+
+safe_sd <- function(x, na.rm = TRUE) {
+  x_clean <- safe_numeric(x)
+  if(length(x_clean[!is.na(x_clean)]) <= 1) return(0)
+  return(sd(x_clean, na.rm = na.rm))
+}
+
+# IMPROVED: Better runs analysis function with robust error handling
+detect_runs_signals <- function(values, centerline, dates = NULL, min_run_length = 8) {
+  # Robust numeric conversion
+  values <- safe_numeric(values)
+  centerline <- safe_numeric(centerline)
+
+  valid_indices <- which(!is.na(values) & !is.na(centerline) & is.finite(values) & is.finite(centerline))
+  if(length(valid_indices) < min_run_length) {
+    return(rep(FALSE, length(values)))
+  }
+
+  # Calculate which side of centerline each point is on
+  above_cl <- rep(NA, length(values))
+  above_cl[valid_indices] <- values[valid_indices] > centerline[valid_indices]
+
+  # Use run length encoding to find consecutive runs
+  valid_above <- above_cl[valid_indices]
+  runs <- rle(valid_above)
+
+  # Find runs of min_run_length+ consecutive points
+  long_runs <- runs$lengths >= min_run_length
+
+  # Initialize signal vector
+  signals <- rep(FALSE, length(values))
+
+  if(any(long_runs)) {
+    # Calculate positions in the valid subset
+    valid_end_positions <- cumsum(runs$lengths)
+    valid_start_positions <- c(1, valid_end_positions[-length(valid_end_positions)] + 1)
+
+    for(i in which(long_runs)) {
+      valid_run_start <- valid_start_positions[i]
+      valid_run_end <- valid_end_positions[i]
+
+      # Convert back to original indices
+      run_start_idx <- valid_indices[valid_run_start]
+      run_end_idx <- valid_indices[valid_run_end]
+
+      # Mark from the 8th point onward in this run
+      signal_start_in_valid <- valid_run_start + min_run_length - 1
+      if(signal_start_in_valid <= length(valid_indices)) {
+        signal_start_idx <- valid_indices[signal_start_in_valid]
+        signals[signal_start_idx:run_end_idx] <- TRUE
+      }
+    }
+  }
+
+  return(signals)
+}
+
+# IMPROVED: Runs analysis for recalculated charts with robust error handling
+detect_runs_signals_recalc <- function(values, centerline_orig, centerline_recalc, dates, recalc_date, min_run_length = 8) {
+  # Robust numeric conversion
+  values <- safe_numeric(values)
+  centerline_orig <- safe_numeric(centerline_orig)
+  centerline_recalc <- safe_numeric(centerline_recalc)
+
+  signals <- rep(FALSE, length(values))
+
+  # Split data at recalculation point
+  before_recalc <- which(!is.na(dates) & dates < recalc_date)
+  after_recalc <- which(!is.na(dates) & dates >= recalc_date)
+
+  # Analyze runs separately for each segment
+  if(length(before_recalc) >= min_run_length) {
+    before_centerline <- rep(centerline_orig[1], length(before_recalc))
+    before_signals <- detect_runs_signals(values[before_recalc], before_centerline, dates[before_recalc], min_run_length)
+    signals[before_recalc] <- before_signals
+  }
+
+  if(length(after_recalc) >= min_run_length) {
+    after_centerline <- rep(centerline_recalc[1], length(after_recalc))
+    after_signals <- detect_runs_signals(values[after_recalc], after_centerline, dates[after_recalc], min_run_length)
+    signals[after_recalc] <- after_signals
+  }
+
+  return(signals)
+}
+
+# Custom 20-color palette for charts - ensures we never run out of colors
+chart_colors <- c(
+  "#2E86AB",  # Ocean blue
+  "#A23B72",  # Berry purple
+  "#F18F01",  # Orange
+  "#C73E1D",  # Red
+  "#8E5572",  # Mauve
+  "#007F5F",  # Forest green
+  "#7209B7",  # Purple
+  "#AA6C39",  # Brown
+  "#FF6B6B",  # Coral
+  "#4ECDC4",  # Teal
+  "#45B7D1",  # Sky blue
+  "#96CEB4",  # Mint green
+  "#FFEAA7",  # Light yellow
+  "#DDA0DD",  # Plum
+  "#F39C12",  # Golden orange
+  "#E74C3C",  # Crimson
+  "#3498DB",  # Bright blue
+  "#2ECC71",  # Emerald
+  "#9B59B6",  # Amethyst
+  "#F1C40F"   # Sunshine yellow
+)
 
 # UI
 ui <- fluidPage(
@@ -49,7 +186,7 @@ ui <- fluidPage(
     "))
   ),
 
-  titlePanel("Systems Analysis Dashboard"),
+  titlePanel("Upload Standardized Datasets Only"),
 
   # Row 1: File Upload and Basic Controls
   fluidRow(
@@ -237,7 +374,7 @@ ui <- fluidPage(
           br(),
           fluidRow(
             column(4,
-              textInput("control_title", "Chart Title:", value = "Untrended Expectation Chart")
+              textInput("control_title", "Chart Title:", value = "Rational Expectation Chart")
             ),
             column(4,
               textInput("control_subtitle", "Subtitle:", value = "")
@@ -369,18 +506,21 @@ ui <- fluidPage(
           br(),
           plotOutput("cohort_chart", height = "600px")
         ),
-        tabPanel("Debug",
+        tabPanel("Runs Debug",
           br(),
           fluidRow(
             column(12,
-              h4("Cohort Debug Information"),
-              verbatimTextOutput("cohort_debug_info"),
+              h4("Runs Analysis Debug Information"),
+              tags$div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px;",
+                tags$p(style = "font-weight: bold; color: #0066cc;", "This tab shows detailed runs analysis for debugging."),
+                tags$p("The runs rule detects 8+ consecutive points on the same side of the centerline."),
+                tags$p(style = "color: #666;", "Points marked TRUE have triggered a runs signal (8th point onward in each run).")
+              ),
               br(),
-              h4("Cohort Data Structure"),
-              verbatimTextOutput("cohort_data_structure"),
+              verbatimTextOutput("runs_debug_info"),
               br(),
-              h4("Sample Cohort Data"),
-              DT::dataTableOutput("cohort_data_sample")
+              h4("Runs Analysis Data Table"),
+              DT::dataTableOutput("runs_debug_table")
             )
           )
         )
@@ -651,117 +791,6 @@ server <- function(input, output, session) {
     )
   })
 
-  output$cohort_debug_info <- renderText({
-    tryCatch({
-      filtered <- filtered_data()
-
-      # Get unique values from key columns
-      unique_years <- if(!is.null(filtered) && "year" %in% names(filtered)) {
-        if(inherits(filtered$year, c("Date", "POSIXct", "POSIXlt"))) {
-          paste(sort(unique(year(filtered$year))), collapse = ", ")
-        } else {
-          paste(sort(unique(filtered$year)), collapse = ", ")
-        }
-      } else {
-        "No year column or no data"
-      }
-
-      unique_grades <- if(!is.null(filtered) && !is.null(input$cohort_grade_var) && input$cohort_grade_var %in% names(filtered)) {
-        paste(sort(unique(filtered[[input$cohort_grade_var]])), collapse = ", ")
-      } else {
-        "No grade column selected or no data"
-      }
-
-      paste(
-        "=== COHORT DEBUG INFO ===",
-        paste("Raw data rows:", if(is.null(raw_data())) "NULL" else nrow(raw_data())),
-        paste("Filtered data rows:", if(is.null(filtered_data())) "NULL" else nrow(filtered_data())),
-        paste("Grade column selected:", input$cohort_grade_var %||% "NULL"),
-        paste("Start grade:", input$cohort_start_grade %||% "NULL"),
-        paste("End grade:", input$cohort_end_grade %||% "NULL"),
-        paste("Start year:", input$cohort_start_year %||% "NULL"),
-        paste("End year:", input$cohort_end_year %||% "NULL"),
-        "",
-        "=== COLUMN NAMES IN FILTERED DATA ===",
-        if(is.null(filtered_data())) "No filtered data" else paste(names(filtered_data()), collapse = ", "),
-        "",
-        "=== ACTUAL VALUES IN DATA ===",
-        paste("Unique years in data:", unique_years),
-        paste("Unique grades in data:", unique_grades),
-        "",
-        "=== YEAR-GRADE MATCHING TEST ===",
-        if(!is.null(filtered) && nrow(filtered) > 0) {
-          grade_col <- input$cohort_grade_var %||% "grade_level_code"
-          if("year" %in% names(filtered) && grade_col %in% names(filtered)) {
-            year_match <- if(inherits(filtered$year, c("Date", "POSIXct", "POSIXlt"))) {
-              year(filtered$year) == 2018
-            } else {
-              filtered$year == 2018
-            }
-            grade_match <- filtered[[grade_col]] == 3
-            paste("Sample rows for 2018 + Grade 3:", sum(year_match & grade_match, na.rm = TRUE))
-          } else {
-            "Missing year or grade column"
-          }
-        } else {
-          "No filtered data to test"
-        },
-        "",
-        "=== COHORT_DATA() FUNCTION RESULT ===",
-        paste("Cohort data rows:", if(is.null(try(cohort_data(), silent = TRUE))) "ERROR/NULL" else
-              if(is.data.frame(try(cohort_data(), silent = TRUE))) nrow(cohort_data()) else "NOT DATA FRAME"),
-        sep = "\n"
-      )
-    }, error = function(e) {
-      paste("ERROR in debug:", e$message)
-    })
-  })
-
-  output$cohort_data_structure <- renderText({
-    tryCatch({
-      cohort_result <- cohort_data()
-      if(is.null(cohort_result) || nrow(cohort_result) == 0) {
-        return("No cohort data available")
-      }
-
-      paste(
-        "=== COHORT DATA STRUCTURE ===",
-        paste("Dimensions:", paste(dim(cohort_result), collapse = " x ")),
-        paste("Column names:", paste(names(cohort_result), collapse = ", ")),
-        "",
-        "=== COLUMN CLASSES ===",
-        paste(names(cohort_result), ":", sapply(cohort_result, class), collapse = "\n"),
-        "",
-        "=== SAMPLE VALUES ===",
-        if("progression" %in% names(cohort_result)) {
-          paste("Progression values:", paste(head(cohort_result$progression, 3), collapse = ", "))
-        } else {
-          "No 'progression' column found"
-        },
-        if("value" %in% names(cohort_result)) {
-          paste("Value column values:", paste(head(cohort_result$value, 3), collapse = ", "))
-        } else {
-          "No 'value' column found"
-        },
-        sep = "\n"
-      )
-    }, error = function(e) {
-      paste("ERROR in cohort_data():", e$message)
-    })
-  })
-
-  output$cohort_data_sample <- DT::renderDataTable({
-    tryCatch({
-      cohort_result <- cohort_data()
-      if(is.null(cohort_result) || nrow(cohort_result) == 0) {
-        return(data.frame(Message = "No cohort data available"))
-      }
-      return(cohort_result)
-    }, error = function(e) {
-      return(data.frame(Error = paste("Error getting cohort data:", e$message)))
-    })
-  }, options = list(pageLength = 10, scrollX = TRUE))
-
   output$cohort_info <- renderUI({
     data <- raw_data()
     if (is.null(data)) return(NULL)
@@ -795,23 +824,212 @@ server <- function(input, output, session) {
     }
   })
 
-  # Create reactive plot for run chart
+  # NEW: Runs debug information
+  output$runs_debug_info <- renderText({
+    tryCatch({
+      data <- filtered_data()
+      if(is.null(data) || nrow(data) == 0) {
+        return("No data available for runs analysis.")
+      }
+
+      # Remove NA values
+      data <- data[!is.na(data$date) & !is.na(data$value), ]
+      if(nrow(data) == 0) {
+        return("No valid data after removing NA values.")
+      }
+
+      # Determine if recalculation is enabled
+      recalc_enabled <- !is.null(input$enable_recalc) && input$enable_recalc &&
+                       !is.null(input$recalc_date) &&
+                       input$recalc_date >= min(data$date, na.rm = TRUE) &&
+                       input$recalc_date <= max(data$date, na.rm = TRUE)
+
+      if(recalc_enabled) {
+        # Recalculation mode analysis
+        recalc_date <- input$recalc_date
+        data_before <- data[data$date < recalc_date, ]
+        data_after <- data[data$date >= recalc_date, ]
+
+        emp_cl_orig <- safe_mean(data$value)
+        emp_cl_recalc <- if(nrow(data_after) >= 3) safe_mean(data_after$value) else emp_cl_orig
+
+        # Analyze runs for each segment
+        before_above <- if(nrow(data_before) > 0) safe_numeric(data_before$value) > emp_cl_orig else c()
+        after_above <- if(nrow(data_after) > 0) safe_numeric(data_after$value) > emp_cl_recalc else c()
+
+        # Find consecutive runs in each segment
+        before_runs <- if(length(before_above) > 0) rle(before_above[!is.na(before_above)])$lengths else c()
+        after_runs <- if(length(after_above) > 0) rle(after_above[!is.na(after_above)])$lengths else c()
+
+        before_long_runs <- before_runs[before_runs >= 8]
+        after_long_runs <- after_runs[after_runs >= 8]
+
+        paste(
+          "=== FIXED RUNS ANALYSIS (RECALCULATION MODE) ===",
+          paste("Total data points:", nrow(data)),
+          paste("Recalculation date:", format(recalc_date, "%Y-%m-%d")),
+          paste("Points before recalc:", nrow(data_before)),
+          paste("Points after recalc:", nrow(data_after)),
+          "",
+          "=== BEFORE RECALC SEGMENT ===",
+          paste("Centerline (original):", round(emp_cl_orig, 3)),
+          paste("All run lengths:", paste(before_runs, collapse = ", ")),
+          paste("Runs of 8+ points:", paste(before_long_runs, collapse = ", ")),
+          paste("Runs signals detected:", length(before_long_runs) > 0),
+          "",
+          "=== AFTER RECALC SEGMENT ===",
+          paste("Centerline (recalculated):", round(emp_cl_recalc, 3)),
+          paste("All run lengths:", paste(after_runs, collapse = ", ")),
+          paste("Runs of 8+ points:", paste(after_long_runs, collapse = ", ")),
+          paste("Runs signals detected:", length(after_long_runs) > 0),
+          "",
+          "=== IMPROVEMENT NOTES ===",
+          "• Each segment analyzed separately with appropriate centerline",
+          "• No artificial breaks at recalculation boundary",
+          "• Proper run length encoding (rle) used for detection",
+          "• Only 8th+ points in each run marked as signals",
+          sep = "\n"
+        )
+      } else {
+        # Standard mode analysis
+        emp_cl <- safe_mean(data$value)
+        above_cl <- safe_numeric(data$value) > emp_cl
+        above_cl_clean <- above_cl[!is.na(above_cl)]
+
+        runs <- rle(above_cl_clean)$lengths
+        long_runs <- runs[runs >= 8]
+
+        # Find actual runs details
+        run_details <- rle(above_cl_clean)
+        above_runs <- run_details$lengths[run_details$values == TRUE]
+        below_runs <- run_details$lengths[run_details$values == FALSE]
+
+        paste(
+          "=== FIXED RUNS ANALYSIS (STANDARD MODE) ===",
+          paste("Total data points:", nrow(data)),
+          paste("Centerline:", round(emp_cl, 3)),
+          "",
+          "=== ALL CONSECUTIVE RUNS ===",
+          paste("All run lengths:", paste(runs, collapse = ", ")),
+          paste("Runs above centerline:", paste(above_runs, collapse = ", ")),
+          paste("Runs below centerline:", paste(below_runs, collapse = ", ")),
+          "",
+          "=== RUNS SIGNALS (8+ CONSECUTIVE) ===",
+          paste("Runs of 8+ points:", paste(long_runs, collapse = ", ")),
+          paste("Total long runs detected:", length(long_runs)),
+          paste("Runs signal triggered:", length(long_runs) > 0),
+          "",
+          "=== IMPROVEMENT NOTES ===",
+          "• Proper run length encoding (rle) detects ALL consecutive runs",
+          "• No boundary condition bugs with rolling windows",
+          "• Handles runs of any length (not just exactly 8)",
+          "• Only marks 8th+ points in each run as signals",
+          sep = "\n"
+        )
+      }
+    }, error = function(e) {
+      paste("ERROR in runs analysis:", e$message)
+    })
+  })
+
+  # NEW: Runs debug data table
+  output$runs_debug_table <- DT::renderDataTable({
+    tryCatch({
+      data <- filtered_data()
+      if(is.null(data) || nrow(data) == 0) {
+        return(data.frame(Message = "No data available"))
+      }
+
+      # Remove NA values
+      data <- data[!is.na(data$date) & !is.na(data$value), ]
+      if(nrow(data) == 0) {
+        return(data.frame(Message = "No valid data after removing NA values"))
+      }
+
+      # Calculate runs analysis details
+      recalc_enabled <- !is.null(input$enable_recalc) && input$enable_recalc &&
+                       !is.null(input$recalc_date) &&
+                       input$recalc_date >= min(data$date, na.rm = TRUE) &&
+                       input$recalc_date <= max(data$date, na.rm = TRUE)
+
+      if(recalc_enabled) {
+        recalc_date <- input$recalc_date
+        emp_cl_orig <- safe_mean(data$value)
+        data_after <- data[data$date >= recalc_date, ]
+        emp_cl_recalc <- if(nrow(data_after) >= 3) safe_mean(data_after$value) else emp_cl_orig
+
+        # Use improved runs detection
+        runs_signals <- detect_runs_signals_recalc(safe_numeric(data$value), emp_cl_orig, emp_cl_recalc, data$date, recalc_date)
+
+        centerline_used <- ifelse(data$date < recalc_date, emp_cl_orig, emp_cl_recalc)
+
+        debug_data <- data.frame(
+          Row = 1:nrow(data),
+          Date = data$date,
+          Value = round(safe_numeric(data$value), 3),
+          Centerline_Used = round(centerline_used, 3),
+          Above_Centerline = safe_numeric(data$value) > centerline_used,
+          Runs_Signal = runs_signals,
+          Segment = ifelse(data$date < recalc_date, "Before", "After")
+        )
+      } else {
+        emp_cl <- safe_mean(data$value)
+
+        # Use improved runs detection
+        runs_signals <- detect_runs_signals(safe_numeric(data$value), rep(emp_cl, nrow(data)), data$date)
+
+        debug_data <- data.frame(
+          Row = 1:nrow(data),
+          Date = data$date,
+          Value = round(safe_numeric(data$value), 3),
+          Centerline = round(emp_cl, 3),
+          Above_Centerline = safe_numeric(data$value) > emp_cl,
+          Runs_Signal = runs_signals
+        )
+      }
+
+      return(debug_data)
+
+    }, error = function(e) {
+      return(data.frame(Error = paste("Error in runs debug table:", e$message)))
+    })
+  }, options = list(pageLength = 15, scrollX = TRUE, scrollY = "400px"))
+
+  # Create reactive plot for run chart with IMPROVED data processing
   run_plot <- reactive({
     data <- filtered_data()
     req(data)
 
-    # FIXED: Remove rows with NA values to prevent TRUE/FALSE errors
+    # IMPROVED: Better data validation
+    if(!"value" %in% names(data)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No 'value' column found in data", size = 6) + theme_void())
+    }
+
+    # Remove rows with NA values to prevent TRUE/FALSE errors
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
       return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid data after removing NA values", size = 6) + theme_void())
     }
 
+    # IMPROVED: Safe numeric conversion and validation
+    data$value <- safe_numeric(data$value)
+
+    # Check if we have any valid numeric values
+    if(all(is.na(data$value))) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid numeric values in 'value' column", size = 6) + theme_void())
+    }
+
     title_text <- if(is.null(input$run_title) || input$run_title == "") "Run Chart" else input$run_title
     subtitle_text <- if(is.null(input$run_subtitle)) "" else input$run_subtitle
     caption_text <- if(is.null(input$run_caption)) "" else input$run_caption
 
-    median_value <- median(data$value, na.rm = TRUE)
+    # IMPROVED: Safe statistical calculations
+    median_value <- safe_median(data$value)
+
+    if(is.na(median_value)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "Cannot calculate median - insufficient data", size = 6) + theme_void())
+    }
 
     # Calculate date range for proper text positioning
     date_range <- max(data$date) - min(data$date)
@@ -896,12 +1114,17 @@ server <- function(input, output, session) {
     run_plot()
   })
 
-  # Create reactive plot for line chart
+  # Create reactive plot for line chart with IMPROVED data processing
   line_plot <- reactive({
     data <- filtered_data()
     req(data)
 
-    # FIXED: Remove rows with NA values to prevent TRUE/FALSE errors
+    # IMPROVED: Better data validation
+    if(!"value" %in% names(data)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No 'value' column found in data", size = 6) + theme_void())
+    }
+
+    # Remove rows with NA values to prevent TRUE/FALSE errors
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
@@ -914,6 +1137,14 @@ server <- function(input, output, session) {
     }
 
     group_var <- input$grouping_var
+
+    # IMPROVED: Safe numeric conversion
+    data$value <- safe_numeric(data$value)
+
+    # Check if we have any valid numeric values
+    if(all(is.na(data$value))) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid numeric values in 'value' column", size = 6) + theme_void())
+    }
 
     title_text <- if(is.null(input$line_title) || input$line_title == "") "Line Chart" else input$line_title
     subtitle_text <- if(is.null(input$line_subtitle)) "" else input$line_subtitle
@@ -945,14 +1176,12 @@ server <- function(input, output, session) {
       filter(date == max(date)) %>%
       ungroup()
 
-    colors <- c("#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#8E5572", "#007F5F", "#7209B7", "#AA6C39")
-
     # Create line chart
     ggplot(data, aes(x = date, y = value, color = !!sym(group_var))) +
 
       geom_line(linewidth = 1.2) +
 
-      scale_color_manual(values = colors) +
+      scale_color_manual(values = chart_colors) +
 
       # End-of-line labels
       geom_text(data = label_data,
@@ -999,23 +1228,36 @@ server <- function(input, output, session) {
     line_plot()
   })
 
-  # FIXED: Create reactive plot for expectation chart with improved NA handling and recalculation
+  # FIXED: Create reactive plot for expectation chart with IMPROVED runs analysis and data processing
   control_plot <- reactive({
     data <- filtered_data()
     req(data)
 
-    # FIXED: Remove rows with NA values to prevent TRUE/FALSE errors
+    # IMPROVED: Better data validation
+    if(!"value" %in% names(data)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No 'value' column found in data", size = 6) + theme_void())
+    }
+
+    # Remove rows with NA values to prevent TRUE/FALSE errors
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
       return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid data after removing NA values", size = 6) + theme_void())
     }
 
+    # IMPROVED: Safe numeric conversion
+    data$value <- safe_numeric(data$value)
+
+    # Check if we have any valid numeric values
+    if(all(is.na(data$value))) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid numeric values in 'value' column", size = 6) + theme_void())
+    }
+
     title_text <- if(is.null(input$control_title) || input$control_title == "") "Untrended Expectation Chart" else input$control_title
     subtitle_text <- if(is.null(input$control_subtitle)) "" else input$control_subtitle
     caption_text <- if(is.null(input$control_caption)) "" else input$control_caption
 
-    # IMPROVED: Better recalculation logic with date range checking
+    # Better recalculation logic with date range checking
     recalc_enabled <- !is.null(input$enable_recalc) && input$enable_recalc &&
                      !is.null(input$recalc_date) &&
                      input$recalc_date >= min(data$date, na.rm = TRUE) &&
@@ -1029,21 +1271,19 @@ server <- function(input, output, session) {
       data_before <- data[data$date < recalc_date, ]
       data_after <- data[data$date >= recalc_date, ]
 
-      # Calculate original expectation chart statistics (from before segment or full data)
-      # Using full data for original calculation to maintain historical context
-      emp_cl_orig <- mean(data$value, na.rm = TRUE)
-      sigma_orig <- sd(data$value, na.rm = TRUE)
+      # IMPROVED: Calculate original expectation chart statistics with safe functions
+      emp_cl_orig <- safe_mean(data$value)
+      sigma_orig <- safe_sd(data$value)
       emp_ucl_orig <- emp_cl_orig + 3 * sigma_orig
       emp_lcl_orig <- emp_cl_orig - 3 * sigma_orig
 
-      # Calculate recalculated expectation chart statistics (from after segment)
-      if(nrow(data_after) >= 3) {  # Need minimum points for statistics
-        emp_cl_recalc <- mean(data_after$value, na.rm = TRUE)
-        sigma_recalc <- sd(data_after$value, na.rm = TRUE)
+      # Calculate recalculated expectation chart statistics
+      if(nrow(data_after) >= 3) {
+        emp_cl_recalc <- safe_mean(data_after$value)
+        sigma_recalc <- safe_sd(data_after$value)
         emp_ucl_recalc <- emp_cl_recalc + 3 * sigma_recalc
         emp_lcl_recalc <- emp_cl_recalc - 3 * sigma_recalc
       } else {
-        # Fall back to original if insufficient data
         emp_cl_recalc <- emp_cl_orig
         sigma_recalc <- sigma_orig
         emp_ucl_recalc <- emp_ucl_orig
@@ -1059,25 +1299,13 @@ server <- function(input, output, session) {
       data$emp_lcl_recalc <- emp_lcl_recalc
       data$recalc_date <- recalc_date
 
-      # FIXED: Calculate sigma signals using appropriate limits for each segment with NA handling
-      data$sigma_signals <- ifelse(!is.na(data$date) & data$date < recalc_date,
-                                  (!is.na(data$value) & (data$value > emp_ucl_orig | data$value < emp_lcl_orig)),
-                                  (!is.na(data$value) & (data$value > emp_ucl_recalc | data$value < emp_lcl_recalc)))
+      # Calculate sigma signals using appropriate limits for each segment
+      data$sigma_signals <- ifelse(data$date < recalc_date,
+                                  data$value > emp_ucl_orig | data$value < emp_lcl_orig,
+                                  data$value > emp_ucl_recalc | data$value < emp_lcl_recalc)
 
-      # FIXED: Calculate runs signals across both segments with NA handling
-      data$above_cl <- ifelse(!is.na(data$date) & data$date < recalc_date,
-                             (!is.na(data$value) & data$value > emp_cl_orig),
-                             (!is.na(data$value) & data$value > emp_cl_recalc))
-      data$runs_signal <- FALSE
-
-      # Simple runs test implementation across segments with NA safety
-      for(i in 8:nrow(data)) {
-        if(all(!is.na(data$above_cl[(i-7):i]))) {
-          if(all(data$above_cl[(i-7):i]) || all(!data$above_cl[(i-7):i])) {
-            data$runs_signal[(i-7):i] <- TRUE
-          }
-        }
-      }
+      # Use improved runs analysis for recalculation mode
+      data$runs_signal <- detect_runs_signals_recalc(data$value, emp_cl_orig, emp_cl_recalc, data$date, recalc_date)
 
       # Create annotation data for original limits
       annotation_data_orig <- data.frame(
@@ -1088,9 +1316,9 @@ server <- function(input, output, session) {
                       ", LCL = ", round(emp_lcl_orig, 2))
       )
 
-      # FIXED: Move recalculated annotation box to the right
+      # Move recalculated annotation box to the right
       annotation_data_recalc <- data.frame(
-        x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.55,  # Moved from 0.02 to 0.55
+        x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.55,
         y_pos = emp_lcl_orig - (emp_ucl_orig - emp_lcl_orig) * 0.08,
         label = paste0("Recalculated (from ", format(recalc_date, "%Y-%m-%d"), "): UCL = ", round(emp_ucl_recalc, 2),
                       ", CL = ", round(emp_cl_recalc, 2),
@@ -1106,8 +1334,9 @@ server <- function(input, output, session) {
 
     } else {
       # STANDARD MODE: Original untrended expectation chart
-      emp_cl <- mean(data$value, na.rm = TRUE)
-      sigma <- sd(data$value, na.rm = TRUE)
+      # IMPROVED: Safe statistical calculations
+      emp_cl <- safe_mean(data$value)
+      sigma <- safe_sd(data$value)
       emp_ucl <- emp_cl + 3 * sigma
       emp_lcl <- emp_cl - 3 * sigma
 
@@ -1116,21 +1345,11 @@ server <- function(input, output, session) {
       data$emp_ucl <- emp_ucl
       data$emp_lcl <- emp_lcl
 
-      # FIXED: Calculate sigma signals with NA handling
-      data$sigma_signals <- !is.na(data$value) & (data$value > emp_ucl | data$value < emp_lcl)
+      # Calculate sigma signals
+      data$sigma_signals <- data$value > emp_ucl | data$value < emp_lcl
 
-      # FIXED: Calculate runs signals with NA handling
-      data$above_cl <- !is.na(data$value) & data$value > emp_cl
-      data$runs_signal <- FALSE
-
-      # Simple runs test implementation with NA safety
-      for(i in 8:nrow(data)) {
-        if(all(!is.na(data$above_cl[(i-7):i]))) {
-          if(all(data$above_cl[(i-7):i]) || all(!data$above_cl[(i-7):i])) {
-            data$runs_signal[(i-7):i] <- TRUE
-          }
-        }
-      }
+      # Use improved runs analysis
+      data$runs_signal <- detect_runs_signals(data$value, rep(emp_cl, nrow(data)), data$date)
 
       # Create annotation data for limits
       annotation_data_limits <- data.frame(
@@ -1180,21 +1399,25 @@ server <- function(input, output, session) {
     if(recalc_enabled) {
       # RECALCULATION MODE: Show both sets of expectation limits
 
+      # Determine if any runs signal exists for line style
+      any_runs_signal <- any(data$runs_signal, na.rm = TRUE)
+      centerline_style <- if(any_runs_signal) "dashed" else "solid"
+
       # Original centerline (before recalc date)
-      p <- p + geom_line(aes(y = ifelse(!is.na(date) & date < recalc_date, emp_cl_orig, NA),
-                            linetype = factor(runs_signal)), color = "blue", linewidth = 1) +
+      p <- p + geom_line(aes(y = ifelse(date < recalc_date, emp_cl_orig, NA)),
+                        color = "blue", linewidth = 1, linetype = centerline_style) +
 
       # Recalculated centerline (after recalc date)
-      geom_line(aes(y = ifelse(!is.na(date) & date >= recalc_date, emp_cl_recalc, NA),
-                   linetype = factor(runs_signal)), color = "green", linewidth = 1) +
+      geom_line(aes(y = ifelse(date >= recalc_date, emp_cl_recalc, NA)),
+               color = "green", linewidth = 1, linetype = centerline_style) +
 
       # Original expectation limits (before recalc date)
-      geom_line(aes(y = ifelse(!is.na(date) & date < recalc_date, emp_ucl_orig, NA)), color = "red", linetype = "solid", linewidth = 1) +
-      geom_line(aes(y = ifelse(!is.na(date) & date < recalc_date, emp_lcl_orig, NA)), color = "red", linetype = "solid", linewidth = 1) +
+      geom_line(aes(y = ifelse(date < recalc_date, emp_ucl_orig, NA)), color = "red", linetype = "solid", linewidth = 1) +
+      geom_line(aes(y = ifelse(date < recalc_date, emp_lcl_orig, NA)), color = "red", linetype = "solid", linewidth = 1) +
 
       # Recalculated expectation limits (after recalc date)
-      geom_line(aes(y = ifelse(!is.na(date) & date >= recalc_date, emp_ucl_recalc, NA)), color = "red", linetype = "dashed", linewidth = 1) +
-      geom_line(aes(y = ifelse(!is.na(date) & date >= recalc_date, emp_lcl_recalc, NA)), color = "red", linetype = "dashed", linewidth = 1) +
+      geom_line(aes(y = ifelse(date >= recalc_date, emp_ucl_recalc, NA)), color = "red", linetype = "dashed", linewidth = 1) +
+      geom_line(aes(y = ifelse(date >= recalc_date, emp_lcl_recalc, NA)), color = "red", linetype = "dashed", linewidth = 1) +
 
       # Vertical line at recalculation point
       geom_vline(xintercept = recalc_date, color = "purple", linetype = "dotted", linewidth = 1.5, alpha = 0.7) +
@@ -1203,7 +1426,7 @@ server <- function(input, output, session) {
       ggtext::geom_richtext(
         data = annotation_data_orig,
         aes(x = x_pos, y = y_pos, label = label),
-        size = 5, color = "black", hjust = 0, vjust = 1,
+        size = 5, color = "black", hjust = 0, vjust = -1,
         fill = "lightblue", label.color = "black"
       ) +
 
@@ -1235,10 +1458,14 @@ server <- function(input, output, session) {
 
     } else {
       # STANDARD MODE: Original expectation chart display
+
+      # Determine if any runs signal exists for line style
+      any_runs_signal <- any(data$runs_signal, na.rm = TRUE)
+      centerline_style <- if(any_runs_signal) "dashed" else "solid"
+
       p <- p +
       # Center line with linetype based on runs signals
-      geom_line(aes(y = emp_cl, linetype = factor(runs_signal)), color = "blue", linewidth = 1) +
-      scale_linetype_manual(values = c("FALSE" = "solid", "TRUE" = "dashed")) +
+      geom_line(aes(y = emp_cl), color = "blue", linewidth = 1, linetype = centerline_style) +
 
       # Upper and lower expectation limits
       geom_line(aes(y = emp_ucl), color = "red", linetype = "solid", linewidth = 1) +
@@ -1323,12 +1550,17 @@ server <- function(input, output, session) {
     return(p)
   })
 
-  # Create reactive plot for bar chart
+  # Create reactive plot for bar chart with IMPROVED data processing
   bar_plot <- reactive({
     data <- filtered_data()
     req(data)
 
-    # FIXED: Remove rows with NA values to prevent TRUE/FALSE errors
+    # IMPROVED: Better data validation
+    if(!"value" %in% names(data)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No 'value' column found in data", size = 6) + theme_void())
+    }
+
+    # Remove rows with NA values to prevent TRUE/FALSE errors
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
@@ -1342,38 +1574,62 @@ server <- function(input, output, session) {
 
     group_var <- input$grouping_var
 
-    # Calculate averages across all user-selected dates for each group
+    # IMPROVED: Safe numeric conversion
+    data$value <- safe_numeric(data$value)
+
+    # Check if we have any valid numeric values
+    if(all(is.na(data$value))) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid numeric values in 'value' column", size = 6) + theme_void())
+    }
+
+    # Calculate averages across all user-selected dates for each group using safe functions
     bar_data <- data %>%
       group_by(!!sym(group_var)) %>%
-      summarise(value = mean(value, na.rm = TRUE), .groups = 'drop')
+      summarise(value = safe_mean(value), .groups = 'drop')
 
     title_text <- if(is.null(input$bar_title) || input$bar_title == "") "Bar Chart" else input$bar_title
     subtitle_text <- if(is.null(input$bar_subtitle)) "" else input$bar_subtitle
     caption_text <- if(is.null(input$bar_caption)) "" else input$bar_caption
 
-    colors <- c("#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#8E5572", "#007F5F", "#7209B7", "#AA6C39")
-
     # Create bar chart
-    ggplot(bar_data, aes(x = !!sym(group_var), y = value, fill = !!sym(group_var))) +
-
+    ggplot(bar_data, aes(x = reorder(!!sym(group_var), value), y = value, fill = !!sym(group_var))) +
       geom_col(width = 0.7, alpha = 0.8) +
 
-      scale_fill_manual(values = colors) +
+      # Add value labels at the end of each bar
+      geom_text(aes(label = if(input$format_as_percentage) {
+        scales::percent(value, accuracy = 0.1)
+      } else {
+        format(round(value, 2), big.mark = ",")
+      }),
+      hjust = -0.1, vjust = 0.5, size = 6, color = "black", fontface = "bold") +
 
+      scale_fill_manual(values = chart_colors) +
       scale_y_continuous(
         labels = if(input$format_as_percentage) {
           scales::percent_format(accuracy = 0.1)
         } else {
           function(y) format(y, scientific = FALSE, big.mark = ",")
         },
-        expand = expansion(mult = c(0.10, 0.10))
+        expand = expansion(mult = c(0.10, 0.15))  # Increased right margin for labels
       ) +
-
       scale_x_discrete(expand = expansion(add = 0.6)) +
-
       # Flip coordinates so values are horizontal
       coord_flip() +
-
+      # rest of your code...
+    # ggplot(bar_data, aes(x = reorder(!!sym(group_var), value), y = value, fill = !!sym(group_var))) +
+    #   geom_col(width = 0.7, alpha = 0.8) +
+    #   scale_fill_manual(values = chart_colors) +
+    #   scale_y_continuous(
+    #     labels = if(input$format_as_percentage) {
+    #       scales::percent_format(accuracy = 0.1)
+    #     } else {
+    #       function(y) format(y, scientific = FALSE, big.mark = ",")
+    #     },
+    #     expand = expansion(mult = c(0.10, 0.10))
+    #   ) +
+    #   scale_x_discrete(expand = expansion(add = 0.6)) +
+    #   # Flip coordinates so values are horizontal
+    #   coord_flip() +
       labs(title = title_text, subtitle = subtitle_text, caption = caption_text,
            x = tools::toTitleCase(group_var), y = "Average Value") +
 
@@ -1401,16 +1657,29 @@ server <- function(input, output, session) {
     bar_plot()
   })
 
-  # Create reactive plot for trended expectation chart
+  # Create reactive plot for trended expectation chart with IMPROVED data processing
   trended_plot <- reactive({
     data <- filtered_data()
     req(data)
 
-    # FIXED: Remove rows with NA values to prevent TRUE/FALSE errors
+    # IMPROVED: Better data validation
+    if(!"value" %in% names(data)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No 'value' column found in data", size = 6) + theme_void())
+    }
+
+    # Remove rows with NA values to prevent TRUE/FALSE errors
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
       return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid data after removing NA values", size = 6) + theme_void())
+    }
+
+    # IMPROVED: Safe numeric conversion
+    data$value <- safe_numeric(data$value)
+
+    # Check if we have any valid numeric values
+    if(all(is.na(data$value))) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid numeric values in 'value' column", size = 6) + theme_void())
     }
 
     title_text <- if(is.null(input$trended_title) || input$trended_title == "") "Trended Expectation Chart" else input$trended_title
@@ -1420,52 +1689,55 @@ server <- function(input, output, session) {
     # Convert dates to numeric for linear modeling (days since first date)
     data$date_numeric <- as.numeric(data$date - min(data$date))
 
-    # Fit linear model
-    trend_model <- lm(value ~ date_numeric, data = data)
+    # IMPROVED: Fit linear model with robust error handling
+    trend_model <- NULL
+    bias_corrected_sd <- 0
 
-    # Calculate residuals standard deviation with bias correction
-    residuals_sd <- sd(residuals(trend_model))
-    bias_corrected_sd <- residuals_sd / 1.128
+    tryCatch({
+      trend_model <- lm(value ~ date_numeric, data = data)
 
-    # Calculate trended centerline and expectation limits
-    data$trended_cl <- predict(trend_model, newdata = data)
-    data$trended_ucl <- data$trended_cl + 3 * bias_corrected_sd
-    data$trended_lcl <- data$trended_cl - 3 * bias_corrected_sd
+      # Calculate residuals standard deviation with bias correction
+      residuals_sd <- safe_sd(residuals(trend_model))
+      bias_corrected_sd <- residuals_sd / 1.128
 
-    # FIXED: Calculate sigma signals (points outside expectation limits) with NA handling
-    data$sigma_signals <- !is.na(data$value) & (data$value > data$trended_ucl | data$value < data$trended_lcl)
+      # Calculate trended centerline and expectation limits
+      data$trended_cl <- as.numeric(predict(trend_model, newdata = data))
+      data$trended_ucl <- data$trended_cl + 3 * bias_corrected_sd
+      data$trended_lcl <- data$trended_cl - 3 * bias_corrected_sd
+    }, error = function(e) {
+      # Fallback to simple mean if linear model fails
+      emp_cl <- safe_mean(data$value)
+      data$trended_cl <<- rep(emp_cl, nrow(data))
+      data$trended_ucl <<- rep(emp_cl + 3 * safe_sd(data$value), nrow(data))
+      data$trended_lcl <<- rep(emp_cl - 3 * safe_sd(data$value), nrow(data))
+      bias_corrected_sd <<- safe_sd(data$value)
+    })
 
-    # Runs analysis (full statistical test as provided)
-    runs <- sign(data$value - data$trended_cl)
-    runs <- runs[runs != 0 & !is.na(runs)]  # FIXED: Remove NA values
-    runs <- rle(runs)$lengths
-    n.obs <- sum(runs)
-    longest.run <- max(runs, na.rm = TRUE)
-    n.runs <- length(runs)
-    n.crossings <- n.runs - 1
-    longest.run.max <- round(log2(n.obs) + 3)
-    n.crossings.min <- qbinom(.05, n.obs - 1, 0.5)
-    runs.signal <- longest.run > longest.run.max | n.crossings < n.crossings.min
+    # Calculate sigma signals (points outside expectation limits)
+    data$sigma_signals <- data$value > data$trended_ucl | data$value < data$trended_lcl
 
-    # Add runs signal to data (all points get same value)
-    data$runs_signal <- runs.signal
+    # Use improved runs analysis for trended chart
+    data$runs_signal <- detect_runs_signals(data$value, data$trended_cl, data$date)
 
     # Create annotation data for limits
     annotation_data_limits <- data.frame(
       x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.02,
       y_pos = max(data$trended_ucl) + (max(data$trended_ucl) - min(data$trended_lcl)) * 0.02,
-      label = paste0("Trend Model: y = ", round(coef(trend_model)[1], 2), " + ",
-                     round(coef(trend_model)[2], 4), " × days<br>",
-                     "Bias-corrected σ = ", round(bias_corrected_sd, 2))
+      label = if(!is.null(trend_model)) {
+        paste0("Trend Model: y = ", round(coef(trend_model)[1], 2), " + ",
+               round(coef(trend_model)[2], 4), " × days<br>",
+               "Bias-corrected σ = ", round(bias_corrected_sd, 2))
+      } else {
+        paste0("Fallback Model (No Trend)<br>",
+               "σ = ", round(bias_corrected_sd, 2))
+      }
     )
 
     # Create annotation data for runs analysis
     annotation_data_runs <- data.frame(
       x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.02,
       y_pos = min(data$trended_lcl) - (max(data$trended_ucl) - min(data$trended_lcl)) * 0.05,
-      label = paste0("Longest run: ", longest.run, " (max: ", longest.run.max, ")<br>",
-                     "Crossings: ", n.crossings, " (min: ", n.crossings.min, ")<br>",
-                     ifelse(runs.signal, "Runs Signal Detected", "No Runs Signal"))
+      label = ifelse(any(data$runs_signal, na.rm = TRUE), "Runs Signal Detected", "No Runs Signal")
     )
 
     # Smart date formatting
@@ -1489,6 +1761,11 @@ server <- function(input, output, session) {
     }
 
     # Create trended expectation chart
+
+    # Determine if any runs signal exists for line style
+    any_runs_signal <- any(data$runs_signal, na.rm = TRUE)
+    centerline_style <- if(any_runs_signal) "dashed" else "solid"
+
     ggplot(data, aes(x = date, y = value)) +
 
       # Connect the dots with lines
@@ -1499,8 +1776,7 @@ server <- function(input, output, session) {
       scale_color_manual(values = c("TRUE" = "red", "FALSE" = "blue")) +
 
       # Trended centerline with linetype based on runs signals
-      geom_line(aes(y = trended_cl, linetype = factor(runs_signal)), color = "blue", linewidth = 1) +
-      scale_linetype_manual(values = c("FALSE" = "solid", "TRUE" = "dashed")) +
+      geom_line(aes(y = trended_cl), color = "blue", linewidth = 1, linetype = centerline_style) +
 
       # Upper and lower expectation limits (red dotted lines for trended)
       geom_line(aes(y = trended_ucl), color = "red", linetype = "dotted", linewidth = 1) +
@@ -1594,12 +1870,17 @@ server <- function(input, output, session) {
       )
   })
 
-  # NEW: Create reactive plot for educational cohort tracking
+  # Create reactive plot for educational cohort tracking with IMPROVED data processing
   cohort_plot <- reactive({
     data <- filtered_data()
     req(data)
 
-    # FIXED: Remove rows with NA values to prevent TRUE/FALSE errors
+    # IMPROVED: Better data validation
+    if(!"value" %in% names(data)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No 'value' column found in data", size = 6) + theme_void())
+    }
+
+    # Remove rows with NA values to prevent TRUE/FALSE errors
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
@@ -1620,6 +1901,14 @@ server <- function(input, output, session) {
     start_year <- input$cohort_start_year
     end_year <- input$cohort_end_year
 
+    # IMPROVED: Safe numeric conversion
+    data$value <- safe_numeric(data$value)
+
+    # Check if we have any valid numeric values
+    if(all(is.na(data$value))) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No valid numeric values in 'value' column", size = 6) + theme_void())
+    }
+
     title_text <- if(is.null(input$cohort_title) || input$cohort_title == "") "Educational Cohort Analysis" else input$cohort_title
     subtitle_text <- if(is.null(input$cohort_subtitle)) "" else input$cohort_subtitle
     caption_text <- if(is.null(input$cohort_caption)) "" else input$cohort_caption
@@ -1630,7 +1919,6 @@ server <- function(input, output, session) {
     }
 
     # Create cohort progression data
-    # Year 1: Grade start_grade, Year 2: Grade start_grade+1, etc.
     cohort_data <- data.frame()
 
     current_year <- start_year
@@ -1667,7 +1955,7 @@ server <- function(input, output, session) {
 
       if(nrow(year_grade_data) > 0) {
         # Extract the single value directly (no averaging needed)
-        cohort_value <- year_grade_data$value[1]  # Take first/only value
+        cohort_value <- safe_numeric(year_grade_data$value[1])  # Take first/only value
 
         # Add to cohort progression
         cohort_data <- rbind(cohort_data, data.frame(
@@ -1762,7 +2050,7 @@ server <- function(input, output, session) {
       return(data.frame())
     }
 
-    # FIXED: Remove rows with NA values
+    # Remove rows with NA values
     data <- data[!is.na(data$date) & !is.na(data$value), ]
 
     if(nrow(data) == 0) {
@@ -1803,7 +2091,7 @@ server <- function(input, output, session) {
 
       # Handle grade matching using selected column
       grade_matches <- if(is.numeric(data[[grade_var]])) {
-        data[[grade_var]] == current_grade
+        as.numeric(data[[grade_var]]) == current_grade
       } else {
         grade_text_patterns <- paste0("\\b", current_grade, "\\b")
         grepl(grade_text_patterns, data[[grade_var]], ignore.case = TRUE)
@@ -1840,7 +2128,7 @@ server <- function(input, output, session) {
     trended_plot()
   })
 
-  # NEW: Render cohort chart
+  # Render cohort chart
   output$cohort_chart <- renderPlot({
     cohort_plot()
   })
@@ -2142,7 +2430,7 @@ server <- function(input, output, session) {
     }
   })
 
-  # Reactive filtered data
+  # Reactive filtered data with IMPROVED data processing
   filtered_data <- reactive({
     data <- raw_data()
     req(data)
