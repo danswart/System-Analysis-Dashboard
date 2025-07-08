@@ -107,173 +107,198 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 Line Charts: aes(x = date, y = value, color = campus)<br>
 Control Charts: Same structure + control limits<br>
 Cohort Analysis: group_by() any categorical column</p>
-</section>
-<section id="load-function-for-later-use-in-this-manual-pipeline" class="level2">
-<h2 class="anchored" data-anchor-id="load-function-for-later-use-in-this-manual-pipeline">1. Load function for later use in this manual pipeline</h2>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># My exploration function - helpful for complex datasets</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>explore_my_data <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"=== MY DATA CHECK ===</span><span class="sc">\n</span><span class="st">"</span>)</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Dimensions:"</span>, <span class="fu">nrow</span>(data), <span class="st">"rows x"</span>, <span class="fu">ncol</span>(data), <span class="st">"columns</span><span class="sc">\n</span><span class="st">"</span>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"File size:"</span>, <span class="fu">format</span>(<span class="fu">object.size</span>(data), <span class="at">units =</span> <span class="st">"MB"</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Columns:"</span>, <span class="fu">paste</span>(<span class="fu">names</span>(data), <span class="at">collapse =</span> <span class="st">", "</span>), <span class="st">"</span><span class="sc">\n\n</span><span class="st">"</span>)</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(data)</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">glimpse</span>(data)</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Extra useful for complex data:</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Missing values per column:</span><span class="sc">\n</span><span class="st">"</span>)</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  missing_summary <span class="ot">&lt;-</span> <span class="fu">sapply</span>(data, <span class="cf">function</span>(x) <span class="fu">sum</span>(<span class="fu">is.na</span>(x)))</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(missing_summary[missing_summary <span class="sc">&gt;</span> <span class="dv">0</span>])  <span class="co"># Only show columns with missing data</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Data types summary:</span><span class="sc">\n</span><span class="st">"</span>)</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">table</span>(<span class="fu">sapply</span>(data, class)))</span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Use it:</span></span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="co"># explore_my_data(raw_data)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
 <section id="load-libraries" class="level3">
-<h3 class="anchored" data-anchor-id="load-libraries">2. Load libraries</h3>
+<h3 class="anchored" data-anchor-id="load-libraries">1. Load libraries</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(janitor)</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tibble)</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lubridate)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(janitor)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tibble)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lubridate)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="load-function-for-later-use-in-this-manual-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="load-function-for-later-use-in-this-manual-pipeline">2. Load function for later use in this manual pipeline</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># My exploration function - helpful for complex datasets</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>explore_my_data <span class="ot">&lt;-</span> <span class="cf">function</span>(data) {</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"=== MY DATA CHECK ===</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Dimensions:"</span>, <span class="fu">nrow</span>(data), <span class="st">"rows x"</span>, <span class="fu">ncol</span>(data), <span class="st">"columns</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"File size:"</span>, <span class="fu">format</span>(<span class="fu">object.size</span>(data), <span class="at">units =</span> <span class="st">"MB"</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Columns:"</span>, <span class="fu">paste</span>(<span class="fu">names</span>(data), <span class="at">collapse =</span> <span class="st">", "</span>), <span class="st">"</span><span class="sc">\n\n</span><span class="st">"</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(data)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">glimpse</span>(data)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Extra useful for complex data:</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Missing values per column:</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  missing_summary <span class="ot">&lt;-</span> <span class="fu">sapply</span>(data, <span class="cf">function</span>(x) <span class="fu">sum</span>(<span class="fu">is.na</span>(x)))</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(missing_summary[missing_summary <span class="sc">&gt;</span> <span class="dv">0</span>])  <span class="co"># Only show columns with missing data</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Data types summary:</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">table</span>(<span class="fu">sapply</span>(data, class)))</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Use it:</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="co"># explore_my_data(man_standardized_data)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="load-data-likely-in-wide-format" class="level3">
 <h3 class="anchored" data-anchor-id="load-data-likely-in-wide-format">3. Load data (likely in WIDE format)</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>raw_data <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/2024-25 Weekly Atten. Percentage 5.27.25 thru 5.30.25 WIDE.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>man_standardized_data <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data archive/20250318 staar_performance_district_level_grades_3_to_8_2018_2024_merged_cleaned_long.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="quick-exploration-using-the-function-defined-above" class="level3">
 <h3 class="anchored" data-anchor-id="quick-exploration-using-the-function-defined-above">4. Quick exploration using the function defined above</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">explore_my_data</span>(raw_data)   <span class="co"># function created in this manual pipeline</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">explore_my_data</span>(man_standardized_data)   <span class="co"># function created in this manual pipeline</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>=== MY DATA CHECK ===
-Dimensions: 38 rows x 18 columns
-File size: 0 Mb 
-Columns: Date, Cibolo
-Valley, Green
-Valley, Paschal, Rose
-Garden, Schertz, Sippel, Watts, Wiederstein, Jordan, Schlather, Wilder, Dobie, Corbett, Clemens, B Steele, ALS ELC, District Avg 
+Dimensions: 10368 rows x 8 columns
+File size: 0.6 Mb 
+Columns: year, group, group_display, grade_level_name, grade_level_code, subject, staar_grouping, value 
 
-Rows: 38
-Columns: 18
-$ Date             &lt;chr&gt; "Aug15-Aug16", "Aug 19-Aug 23", "Aug 26-Aug 30", "Sep…
-$ `Cibolo\nValley` &lt;dbl&gt; 99.45, 96.60, 95.38, 94.10, 95.99, 95.84, 95.94, 95.9…
-$ `Green\nValley`  &lt;dbl&gt; 98.66, 96.55, 94.87, 95.21, 95.80, 97.36, 96.38, 95.9…
-$ Paschal          &lt;dbl&gt; 99.63, 97.20, 94.19, 96.60, 96.64, 97.28, 96.16, 94.2…
-$ `Rose\nGarden`   &lt;dbl&gt; 98.84, 95.73, 94.21, 95.27, 93.92, 94.90, 95.13, 94.3…
-$ Schertz          &lt;dbl&gt; 98.75, 96.46, 94.64, 95.70, 94.63, 93.33, 95.38, 94.6…
-$ Sippel           &lt;dbl&gt; 99.49, 96.37, 95.82, 96.32, 95.97, 95.42, 96.37, 95.5…
-$ Watts            &lt;dbl&gt; 99.33, 96.56, 94.31, 94.84, 94.89, 94.46, 95.93, 95.5…
-$ Wiederstein      &lt;dbl&gt; 98.69, 95.81, 93.86, 94.94, 96.18, 95.61, 94.63, 95.3…
-$ Jordan           &lt;dbl&gt; 98.85, 96.82, 94.97, 93.98, 95.45, 95.46, 95.41, 94.8…
-$ Schlather        &lt;dbl&gt; 99.14, 97.50, 95.12, 94.97, 96.57, 96.51, 96.32, 96.8…
-$ Wilder           &lt;dbl&gt; 98.90, 96.08, 94.07, 93.90, 94.23, 94.91, 95.22, 84.9…
-$ Dobie            &lt;dbl&gt; 99.38, 97.01, 94.28, 95.35, 96.06, 95.99, 96.16, 96.2…
-$ Corbett          &lt;dbl&gt; 98.67, 96.06, 93.86, 93.90, 94.35, 95.00, 94.32, 93.4…
-$ Clemens          &lt;dbl&gt; 98.28, 96.22, 94.81, 93.19, 94.24, 93.89, 94.45, 94.3…
-$ `B Steele`       &lt;dbl&gt; 98.80, 96.64, 95.43, 94.08, 94.87, 95.26, 95.26, 94.8…
-$ `ALS ELC`        &lt;dbl&gt; 96.41, 85.06, 83.54, 79.37, 76.86, 78.00, 83.55, 75.2…
-$ `District Avg`   &lt;dbl&gt; 98.83, 95.79, 93.96, 93.86, 94.17, 94.33, 94.79, 93.2…
+Rows: 10,368
+Columns: 8
+$ year             &lt;dbl&gt; 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024,…
+$ group            &lt;chr&gt; "state", "region20", "district", "african_american", …
+$ group_display    &lt;chr&gt; "State", "Region20", "District", "African American", …
+$ grade_level_name &lt;chr&gt; "Grade 3", "Grade 3", "Grade 3", "Grade 3", "Grade 3"…
+$ grade_level_code &lt;dbl&gt; 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,…
+$ subject          &lt;chr&gt; "Reading", "Reading", "Reading", "Reading", "Reading"…
+$ staar_grouping   &lt;chr&gt; "Approaches or Above", "Approaches or Above", "Approa…
+$ value            &lt;dbl&gt; 0.74, 0.72, 0.70, 0.62, 0.66, 0.75, NA, 0.92, NA, 0.7…
 
 Missing values per column:
-named integer(0)
+value 
+  732 
 
 Data types summary:
 
 character   numeric 
-        1        17 </code></pre>
+        5         3 </code></pre>
 </div>
 </div>
 </section>
-<section id="tidy-column-names" class="level3">
-<h3 class="anchored" data-anchor-id="tidy-column-names">5. Tidy column names</h3>
+<section id="tidy-column-names-if-needed" class="level3">
+<h3 class="anchored" data-anchor-id="tidy-column-names-if-needed">5. Tidy column names (if needed)</h3>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># clean names</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>man_standardized_data <span class="ot">&lt;-</span> raw_data <span class="sc">%&gt;%</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  janitor<span class="sc">::</span><span class="fu">clean_names</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># man_standardized_data &lt;- man_standardized_data %&gt;%</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">#   janitor::clean_names()</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="convert-char-column-to-date-column.-rearrange-columns-and-eliminate-any-transitional-columns-no-longer-needed." class="level3">
-<h3 class="anchored" data-anchor-id="convert-char-column-to-date-column.-rearrange-columns-and-eliminate-any-transitional-columns-no-longer-needed.">6. Convert char column to date column. Rearrange columns and eliminate any transitional columns no longer needed.</h3>
+<section id="convert-char-column-to-date-column-if-needed." class="level3">
+<h3 class="anchored" data-anchor-id="convert-char-column-to-date-column-if-needed.">6. Convert char column to date column (if needed).</h3>
+<p>Rearrange columns and eliminate any transitional columns no longer needed.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>man_standardized_data <span class="ot">&lt;-</span> man_standardized_data <span class="sc">%&gt;%</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">start_date_str =</span> <span class="fu">str_extract</span>(date, <span class="st">"^[A-Za-z]+ ?</span><span class="sc">\\</span><span class="st">d+"</span>),</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">start_date_str =</span> <span class="fu">str_replace</span>(start_date_str, <span class="st">"([A-Za-z]+)(</span><span class="sc">\\</span><span class="st">d+)"</span>, <span class="st">"</span><span class="sc">\\</span><span class="st">1 </span><span class="sc">\\</span><span class="st">2"</span>),</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">year =</span> <span class="fu">if_else</span>(</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">str_detect</span>(start_date_str, <span class="st">"^(Jan|Feb|Mar|Apr|May)"</span>), </span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>      <span class="dv">2025</span>, </span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>      <span class="dv">2024</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_parsed =</span> <span class="fu">mdy</span>(<span class="fu">paste</span>(start_date_str, year))</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(date_parsed) <span class="sc">%&gt;%</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Remove unwanted columns and rename date_parsed to date</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>date, <span class="sc">-</span>start_date_str, <span class="sc">-</span>year) <span class="sc">%&gt;%</span></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">date =</span> date_parsed) <span class="sc">%&gt;%</span></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(date, <span class="at">.before =</span> <span class="fu">everything</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># man_standardized_data &lt;- man_standardized_data %&gt;%</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">#   mutate(</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">#     start_date_str = str_extract(date, "^[A-Za-z]+ ?\\d+"),</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">#     start_date_str = str_replace(start_date_str, "([A-Za-z]+)(\\d+)", "\\1 \\2"),</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">#     year = if_else(</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#       str_detect(start_date_str, "^(Jan|Feb|Mar|Apr|May)"), </span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">#       2025, </span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">#       2024</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co">#     ),</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co">#     date_parsed = mdy(paste(start_date_str, year))</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">#   ) %&gt;%</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">#   arrange(date_parsed) %&gt;%</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">#   # Remove unwanted columns and rename date_parsed to date</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">#   select(-date, -start_date_str, -year) %&gt;%</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">#   rename(date = date_parsed) %&gt;%</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">#   relocate(date, .before = everything())</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="pivot-longer" class="level3">
-<h3 class="anchored" data-anchor-id="pivot-longer">7. Pivot Longer</h3>
+<section id="rename-and-reorder-columns-so-data-and-value-are-the-first-two-columns-if-needed" class="level3">
+<h3 class="anchored" data-anchor-id="rename-and-reorder-columns-so-data-and-value-are-the-first-two-columns-if-needed">7. Rename and reorder columns so ‘data’ and ‘value’ are the first two columns (if needed)</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>man_standardized_data_long <span class="ot">&lt;-</span> man_standardized_data <span class="sc">%&gt;%</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a> <span class="fu">pivot_longer</span>(</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">cols =</span> <span class="sc">-</span>date,</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_to =</span> <span class="st">"campus"</span>, </span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">values_to =</span> <span class="st">"value"</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(date, value, campus</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Rename and reorder columns</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>man_standardized_data <span class="ot">&lt;-</span> man_standardized_data <span class="sc">%&gt;%</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">date =</span> year) <span class="sc">%&gt;%</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(date, value, <span class="fu">everything</span>())</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Confirm results</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>dplyr<span class="sc">::</span><span class="fu">glimpse</span>(man_standardized_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 10,368
+Columns: 8
+$ date             &lt;dbl&gt; 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024,…
+$ value            &lt;dbl&gt; 0.74, 0.72, 0.70, 0.62, 0.66, 0.75, NA, 0.92, NA, 0.7…
+$ group            &lt;chr&gt; "state", "region20", "district", "african_american", …
+$ group_display    &lt;chr&gt; "State", "Region20", "District", "African American", …
+$ grade_level_name &lt;chr&gt; "Grade 3", "Grade 3", "Grade 3", "Grade 3", "Grade 3"…
+$ grade_level_code &lt;dbl&gt; 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,…
+$ subject          &lt;chr&gt; "Reading", "Reading", "Reading", "Reading", "Reading"…
+$ staar_grouping   &lt;chr&gt; "Approaches or Above", "Approaches or Above", "Approa…</code></pre>
+</div>
+</div>
+</section>
+<section id="if-already-in-long-format-rename" class="level3">
+<h3 class="anchored" data-anchor-id="if-already-in-long-format-rename">8. If already in long format, rename</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>man_standardized_data_long <span class="ot">&lt;-</span> man_standardized_data</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="pivot-longer-if-needed" class="level3">
+<h3 class="anchored" data-anchor-id="pivot-longer-if-needed">9. Pivot Longer (if needed)</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># man_standardized_data_long &lt;- man_standardized_data %&gt;%</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">#  pivot_longer(</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#     cols = -date,</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">#     names_to = "campus", </span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co">#     values_to = "value"</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="co">#     ) %&gt;%</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">#   select(date, value, campus</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co">#   )</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="verify-the-results" class="level3">
-<h3 class="anchored" data-anchor-id="verify-the-results">8. Verify the results</h3>
+<h3 class="anchored" data-anchor-id="verify-the-results">10. Verify the results</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(man_standardized_data_long)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(man_standardized_data_long)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Rows: 646
-Columns: 3
-$ date   &lt;date&gt; 2024-08-15, 2024-08-15, 2024-08-15, 2024-08-15, 2024-08-15, 20…
-$ value  &lt;dbl&gt; 99.45, 98.66, 99.63, 98.84, 98.75, 99.49, 99.33, 98.69, 98.85, …
-$ campus &lt;chr&gt; "cibolo_valley", "green_valley", "paschal", "rose_garden", "sch…</code></pre>
+<pre><code>Rows: 10,368
+Columns: 8
+$ date             &lt;dbl&gt; 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024,…
+$ value            &lt;dbl&gt; 0.74, 0.72, 0.70, 0.62, 0.66, 0.75, NA, 0.92, NA, 0.7…
+$ group            &lt;chr&gt; "state", "region20", "district", "african_american", …
+$ group_display    &lt;chr&gt; "State", "Region20", "District", "African American", …
+$ grade_level_name &lt;chr&gt; "Grade 3", "Grade 3", "Grade 3", "Grade 3", "Grade 3"…
+$ grade_level_code &lt;dbl&gt; 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,…
+$ subject          &lt;chr&gt; "Reading", "Reading", "Reading", "Reading", "Reading"…
+$ staar_grouping   &lt;chr&gt; "Approaches or Above", "Approaches or Above", "Approa…</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(man_standardized_data_long)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(man_standardized_data_long)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 6 × 3
-  date       value campus       
-  &lt;date&gt;     &lt;dbl&gt; &lt;chr&gt;        
-1 2024-08-15  99.4 cibolo_valley
-2 2024-08-15  98.7 green_valley 
-3 2024-08-15  99.6 paschal      
-4 2024-08-15  98.8 rose_garden  
-5 2024-08-15  98.8 schertz      
-6 2024-08-15  99.5 sippel       </code></pre>
+<pre><code># A tibble: 6 × 8
+   date value group      group_display grade_level_name grade_level_code subject
+  &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;      &lt;chr&gt;         &lt;chr&gt;                       &lt;dbl&gt; &lt;chr&gt;  
+1  2024  0.74 state      State         Grade 3                         3 Reading
+2  2024  0.72 region20   Region20      Grade 3                         3 Reading
+3  2024  0.7  district   District      Grade 3                         3 Reading
+4  2024  0.62 african_a… African Amer… Grade 3                         3 Reading
+5  2024  0.66 hispanic   Hispanic      Grade 3                         3 Reading
+6  2024  0.75 white      White         Grade 3                         3 Reading
+# ℹ 1 more variable: staar_grouping &lt;chr&gt;</code></pre>
 </div>
 </div>
 </section>
 <section id="use-this-automated-save-function" class="level3">
-<h3 class="anchored" data-anchor-id="use-this-automated-save-function">9. Use this automated save function</h3>
+<h3 class="anchored" data-anchor-id="use-this-automated-save-function">11. Use this automated save function</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># # Make automated functions available for automated data cleaning</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co"># source("automated_data_cleaning_functions.r")</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co"># # Use the automated function</span></span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="co"># save_cleaned_data(man_standardized_data_long, "data/man_standardized_2024-08-15_thru_2025-05-30_weekly_attendance-LONG.csv"</span></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co">#                    )</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># # Make automated functions available for automated data cleaning</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># source("automated_data_cleaning_functions.r")</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co"># # Use the automated function</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co"># save_cleaned_data(man_standardized_data_long, "data/man_standardized_2024-08-15_thru_2025-05-30_weekly_attendance-LONG.csv"</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">#                    )</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 </section>

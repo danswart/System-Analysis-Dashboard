@@ -1615,21 +1615,7 @@ server <- function(input, output, session) {
       scale_x_discrete(expand = expansion(add = 0.6)) +
       # Flip coordinates so values are horizontal
       coord_flip() +
-      # rest of your code...
-    # ggplot(bar_data, aes(x = reorder(!!sym(group_var), value), y = value, fill = !!sym(group_var))) +
-    #   geom_col(width = 0.7, alpha = 0.8) +
-    #   scale_fill_manual(values = chart_colors) +
-    #   scale_y_continuous(
-    #     labels = if(input$format_as_percentage) {
-    #       scales::percent_format(accuracy = 0.1)
-    #     } else {
-    #       function(y) format(y, scientific = FALSE, big.mark = ",")
-    #     },
-    #     expand = expansion(mult = c(0.10, 0.10))
-    #   ) +
-    #   scale_x_discrete(expand = expansion(add = 0.6)) +
-    #   # Flip coordinates so values are horizontal
-    #   coord_flip() +
+
       labs(title = title_text, subtitle = subtitle_text, caption = caption_text,
            x = tools::toTitleCase(group_var), y = "Average Value") +
 
