@@ -1,7 +1,7 @@
-/* AS OF 2025-04-10 /*
+/* AS OF 2025-06-29 /*
 
 /* Edit the CSS properties in this file to create a custom
-   Distill theme. Only edit values in the right column
+   theme. Only edit values in the right column
    for each row; values shown are the CSS defaults.
    To return any property to the default,
    you may set its value to: unset
@@ -15,23 +15,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Cabin');         /* swart */
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab');   /* swart */
 @import url('https://fonts.googleapis.com/css2?family=Schoolbell');    /* swart */
+@import url('https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+
 
 
 hr {
   border: none;
-  height: 10px;
+  height: 4px;
   background-color: #333;
   margin: 2em 0;
-}
-
-.callout-tip, .callout-caution, .callout-important, .callout-warning {
-  display: block;
-  padding: 1em;
-  margin: 1em 0;
-  border-style: solid;
-  border-width: 4px;
-  border-radius: 10px;
-/*  background-color: #f8f9fa;  background colors set below for each callout */
 }
 
 
@@ -89,15 +85,15 @@ hr {
 body {
   font-size: 18px;
   max-width: 100%;      /* Adjust the width as needed */
-  font-family: "Cabin", sans-serif;
+  font-family: "Playfair+Display", sans-serif;
   color: black;
 }
 
 
 h1 {
-  font-family: "Cabin", sans-serif;
+  font-family: "Playfair+Display", sans-serif;
   padding: 10px;
-  color: black;
+  color: darkgreen;
 }
 
 h2 {
@@ -108,7 +104,7 @@ h2 {
 
 
 h3 {
-  font-family: "Cabin", sans-serif;
+  font-family: "Playfair+Display", sans-serif;
   font-size: 22px;
   color: darkred;
   text-align: left;
@@ -116,14 +112,14 @@ h3 {
 
 
 h4 {
-  font-family: "Cabin", sans-serif;
+  font-family: "Playfair+Display", sans-serif;
   font-size: 20px;
   color: darkred;
 }
 
 
 h5 {
-  font-family: "Cabin", sans-serif;
+  font-family: "Playfair+Display", sans-serif;
   font-size: 20px;
   color: black;
 }
@@ -207,7 +203,9 @@ h5 {
     text-align: left;
     border-radius: 10px;
     width: 100%;
+    padding-top: 10px;
     padding-bottom: 10px;
+    padding-left: 10px;
 }
 
 .quote-author {

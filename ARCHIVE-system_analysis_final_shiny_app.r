@@ -1,8 +1,5 @@
 # System Analysis Dashboard - FIXED DATA PROCESSING VERSION
 # Fixed the 'trim' argument warning by improving data validation and processing
-# Enhanced with BOTH Autocorrelation Coefficients AND Sample Correlation Coefficients
-# NEW: Added auto-correlation adjustment for control limits
-# UPDATED: Horizontal annotation boxes positioned above UCL
 
 library(shiny)
 library(DT)
@@ -48,60 +45,6 @@ safe_sd <- function(x, na.rm = TRUE) {
   x_clean <- safe_numeric(x)
   if(length(x_clean[!is.na(x_clean)]) <= 1) return(0)
   return(sd(x_clean, na.rm = na.rm))
-}
-
-# ENHANCED: Safe auto-correlation calculation function (returns BOTH autocorrelation and sample correlation)
-safe_autocorr <- function(x, lag = 1, na.rm = TRUE) {
-  x_clean <- safe_numeric(x)
-
-  if(length(x_clean[!is.na(x_clean)]) <= lag + 1) return(list(acf = NA, r = NA))
-
-  # Remove NA values for autocorrelation calculation
-  if(na.rm) {
-    x_clean <- x_clean[!is.na(x_clean)]
-  }
-
-  if(length(x_clean) <= lag + 1) return(list(acf = NA, r = NA))
-
-  n <- length(x_clean)
-  if(n <= lag) return(list(acf = NA, r = NA))
-
-  # Calculate mean
-  x_mean <- mean(x_clean)
-
-  # Calculate autocorrelation coefficient (normalized by variance)
-  numerator <- 0
-  denominator <- sum((x_clean - x_mean)^2)
-
-  for(i in 1:(n-lag)) {
-    numerator <- numerator + (x_clean[i] - x_mean) * (x_clean[i+lag] - x_mean)
-  }
-
-  # Autocorrelation coefficient
-  acf_value <- numerator / denominator
-
-  # Sample correlation coefficient (Pearson correlation)
-  x_lag <- x_clean[1:(n-lag)]
-  x_lead <- x_clean[(lag+1):n]
-  r_value <- cor(x_lag, x_lead, use = "complete.obs")
-
-  return(list(acf = acf_value, r = r_value))
-}
-
-# NEW: Calculate moving ranges for auto-correlation adjustment
-calculate_moving_ranges <- function(values) {
-  values <- safe_numeric(values)
-  values <- values[!is.na(values)]
-  
-  if(length(values) < 2) return(NA)
-  
-  # Calculate moving ranges (absolute difference between consecutive points)
-  moving_ranges <- abs(diff(values))
-  
-  # Return average moving range
-  avg_mr <- mean(moving_ranges, na.rm = TRUE)
-  
-  return(avg_mr)
 }
 
 # IMPROVED: Better runs analysis function with robust error handling
@@ -423,19 +366,6 @@ ui <- fluidPage(
                                   style = "color: #6c757d; margin-top: 5px; display: block;")
                       )
                     )
-                  ),
-                  br(),
-                  fluidRow(
-                    column(3,
-                      checkboxInput("use_autocorr_modifier", "Use Auto-correlation Modifier", value = FALSE)
-                    ),
-                    column(9,
-                      conditionalPanel(
-                        condition = "input.use_autocorr_modifier",
-                        tags$small("Adjusts control limits using: σ = R-bar / (d2 × √(1 - r²)), where R-bar is avg moving range, d2 = 1.128, and r is the lag-1 sample correlation. This widens limits relative to the standard moving range method (σ = R-bar / d2) when autocorrelation is present.",
-                                  style = "color: #6c757d; margin-top: 5px; display: block;")
-                      )
-                    )
                   )
                 )
               )
@@ -576,28 +506,6 @@ ui <- fluidPage(
           br(),
           plotOutput("cohort_chart", height = "600px")
         ),
-        tabPanel("Auto-correlation Analysis",
-          br(),
-          fluidRow(
-            column(12,
-              uiOutput("autocorr_info")
-            )
-          ),
-          br(),
-          fluidRow(
-            column(12,
-              h4("Auto-correlation Coefficients and Sample Correlation"),
-              tags$div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px;",
-                tags$p(style = "font-weight: bold; color: #0066cc;", "This analysis shows BOTH autocorrelation coefficients (ACF) and sample correlation coefficients (r) for lag-1, lag-2, and lag-3."),
-                tags$p("The Autocorrelation Coefficient (ACF) measures correlation normalized by the overall variance of the series."),
-                tags$p("The Sample Correlation Coefficient (r) is the Pearson correlation coefficient calculated from the paired lag-k observations."),
-                tags$p(style = "color: #666;", "Values close to 0 indicate no correlation. Values close to ±1 indicate strong correlation.")
-              ),
-              br(),
-              DT::dataTableOutput("autocorr_table")
-            )
-          )
-        ),
         tabPanel("Runs Debug",
           br(),
           fluidRow(
@@ -723,78 +631,6 @@ server <- function(input, output, session) {
     }
 
     return(grade_like)
-  })
-
-  # ENHANCED: Reactive for auto-correlation analysis with BOTH ACF and Sample Correlation
-  autocorr_data <- reactive({
-    data <- filtered_data()
-    if(is.null(data) || nrow(data) == 0 || !"value" %in% names(data)) {
-      return(data.frame(
-        Lag = c("Lag-1", "Lag-2", "Lag-3"),
-        Autocorrelation_ACF = c(NA, NA, NA),
-        Sample_Correlation_r = c(NA, NA, NA),
-        ACF_Interpretation = c("No data", "No data", "No data"),
-        r_Interpretation = c("No data", "No data", "No data"),
-        stringsAsFactors = FALSE
-      ))
-    }
-
-    # Remove rows with NA values and sort by date
-    data <- data[!is.na(data$date) & !is.na(data$value), ]
-    data <- data[order(data$date), ]
-
-    if(nrow(data) < 4) {
-      return(data.frame(
-        Lag = c("Lag-1", "Lag-2", "Lag-3"),
-        Autocorrelation_ACF = c(NA, NA, NA),
-        Sample_Correlation_r = c(NA, NA, NA),
-        ACF_Interpretation = c("Insufficient data", "Insufficient data", "Insufficient data"),
-        r_Interpretation = c("Insufficient data", "Insufficient data", "Insufficient data"),
-        stringsAsFactors = FALSE
-      ))
-    }
-
-    # Calculate BOTH coefficients for each lag
-    lag1_results <- safe_autocorr(data$value, lag = 1)
-    lag2_results <- safe_autocorr(data$value, lag = 2)
-    lag3_results <- safe_autocorr(data$value, lag = 3)
-
-    # Create interpretation based on absolute value of correlation
-    interpret_corr <- function(coeff) {
-      if(is.na(coeff)) return("Cannot calculate")
-      abs_coeff <- abs(coeff)
-      if(abs_coeff < 0.1) return("Very weak correlation")
-      if(abs_coeff < 0.3) return("Weak correlation")
-      if(abs_coeff < 0.5) return("Moderate correlation")
-      if(abs_coeff < 0.7) return("Strong correlation")
-      return("Very strong correlation")
-    }
-
-    autocorr_result <- data.frame(
-      Lag = c("Lag-1", "Lag-2", "Lag-3"),
-      Autocorrelation_ACF = round(c(lag1_results$acf, lag2_results$acf, lag3_results$acf), 4),
-      Sample_Correlation_r = round(c(lag1_results$r, lag2_results$r, lag3_results$r), 4),
-      ACF_Interpretation = c(interpret_corr(lag1_results$acf), interpret_corr(lag2_results$acf), interpret_corr(lag3_results$acf)),
-      r_Interpretation = c(interpret_corr(lag1_results$r), interpret_corr(lag2_results$r), interpret_corr(lag3_results$r)),
-      stringsAsFactors = FALSE
-    )
-
-    return(autocorr_result)
-  })
-
-  # NEW: Reactive values to store correlation coefficients for use in control limit calculations
-  correlation_values <- reactive({
-    autocorr_data_result <- autocorr_data()
-
-    # Extract the Sample Correlation Coefficients for future use
-    list(
-      r_lag1 = if(nrow(autocorr_data_result) >= 1) autocorr_data_result$Sample_Correlation_r[1] else NA,
-      r_lag2 = if(nrow(autocorr_data_result) >= 2) autocorr_data_result$Sample_Correlation_r[2] else NA,
-      r_lag3 = if(nrow(autocorr_data_result) >= 3) autocorr_data_result$Sample_Correlation_r[3] else NA,
-      acf_lag1 = if(nrow(autocorr_data_result) >= 1) autocorr_data_result$Autocorrelation_ACF[1] else NA,
-      acf_lag2 = if(nrow(autocorr_data_result) >= 2) autocorr_data_result$Autocorrelation_ACF[2] else NA,
-      acf_lag3 = if(nrow(autocorr_data_result) >= 3) autocorr_data_result$Autocorrelation_ACF[3] else NA
-    )
   })
 
   # Update recalculation date input range when data changes
@@ -988,37 +824,6 @@ server <- function(input, output, session) {
     }
   })
 
-  # ENHANCED: Display auto-correlation information with BOTH correlation types
-  output$autocorr_info <- renderUI({
-    data <- filtered_data()
-    if (is.null(data) || !"value" %in% names(data)) return(NULL)
-
-    # Remove rows with NA values and get valid count
-    data_clean <- data[!is.na(data$date) & !is.na(data$value), ]
-    data_points <- nrow(data_clean)
-    date_range <- range(data_clean$date, na.rm = TRUE)
-
-    # Get correlation values for display
-    corr_vals <- correlation_values()
-
-    div(
-      style = "background-color: #e8f4fd; padding: 10px; border-radius: 5px; border: 1px solid #3498db;",
-      HTML(paste0(
-        "<strong>Auto-correlation Analysis:</strong> Analyzing temporal correlation patterns in your data from ",
-        format(date_range[1], "%B %d, %Y"), " to ", format(date_range[2], "%B %d, %Y"),
-        " <em>(", data_points, " data points after applying filters)</em><br>",
-        "<strong>Stored ACF Values:</strong> ACF₁ = ", if(!is.na(corr_vals$acf_lag1)) round(corr_vals$acf_lag1, 4) else "NA",
-        ", ACF₂ = ", if(!is.na(corr_vals$acf_lag2)) round(corr_vals$acf_lag2, 4) else "NA",
-        ", ACF₃ = ", if(!is.na(corr_vals$acf_lag3)) round(corr_vals$acf_lag3, 4) else "NA",
-        "<br>",
-        "<strong>Stored r Values:</strong> r₁ = ", if(!is.na(corr_vals$r_lag1)) round(corr_vals$r_lag1, 4) else "NA",
-        ", r₂ = ", if(!is.na(corr_vals$r_lag2)) round(corr_vals$r_lag2, 4) else "NA",
-        ", r₃ = ", if(!is.na(corr_vals$r_lag3)) round(corr_vals$r_lag3, 4) else "NA",
-        " <em>(Available for control limit calculations)</em>"
-      ))
-    )
-  })
-
   # NEW: Runs debug information
   output$runs_debug_info <- renderText({
     tryCatch({
@@ -1189,21 +994,6 @@ server <- function(input, output, session) {
       return(data.frame(Error = paste("Error in runs debug table:", e$message)))
     })
   }, options = list(pageLength = 15, scrollX = TRUE, scrollY = "400px"))
-
-  # ENHANCED: Render auto-correlation table with BOTH ACF and Sample Correlation
-  output$autocorr_table <- DT::renderDataTable({
-    autocorr_data()
-  }, options = list(
-    pageLength = 10,
-    scrollX = TRUE,
-    searching = FALSE,
-    paging = FALSE,
-    info = FALSE,
-    columnDefs = list(
-      list(targets = c(1, 2), className = "dt-right"),  # Right-align numeric columns
-      list(targets = c(3, 4), className = "dt-left")    # Left-align interpretation columns
-    )
-  ), rownames = FALSE)
 
   # Create reactive plot for run chart with IMPROVED data processing
   run_plot <- reactive({
@@ -1439,7 +1229,6 @@ server <- function(input, output, session) {
   })
 
   # FIXED: Create reactive plot for expectation chart with IMPROVED runs analysis and data processing
-  # UPDATED: Added auto-correlation adjustment option with horizontal annotation boxes
   control_plot <- reactive({
     data <- filtered_data()
     req(data)
@@ -1474,13 +1263,6 @@ server <- function(input, output, session) {
                      input$recalc_date >= min(data$date, na.rm = TRUE) &&
                      input$recalc_date <= max(data$date, na.rm = TRUE)
 
-    # Check if auto-correlation adjustment is enabled
-    use_autocorr <- !is.null(input$use_autocorr_modifier) && input$use_autocorr_modifier
-    
-    # Get correlation values if needed
-    corr_vals <- if(use_autocorr) correlation_values() else NULL
-    r_lag1 <- if(!is.null(corr_vals) && !is.na(corr_vals$r_lag1)) corr_vals$r_lag1 else NA
-
     if(recalc_enabled) {
       # RECALCULATION MODE: Split data and calculate separate expectation limits
       recalc_date <- input$recalc_date
@@ -1491,60 +1273,14 @@ server <- function(input, output, session) {
 
       # IMPROVED: Calculate original expectation chart statistics with safe functions
       emp_cl_orig <- safe_mean(data$value)
-      
-      # Calculate sigma based on whether auto-correlation adjustment is enabled
-      if(use_autocorr && !is.na(r_lag1)) {
-        # Calculate moving ranges for the entire dataset
-        avg_mr_orig <- calculate_moving_ranges(data$value)
-        if(!is.na(avg_mr_orig) && abs(r_lag1) < 0.999) {  # Avoid division by zero
-          # Apply auto-correlation adjustment formula: σ = R-bar / (d2 * √(1 - r²))
-          sigma_orig <- avg_mr_orig / (1.128 * sqrt(1 - r_lag1^2))
-        } else {
-          # Fallback to standard deviation if moving range fails or r is too close to 1
-          sigma_orig <- safe_sd(data$value)
-        }
-      } else {
-        # Standard calculation using moving range method for consistency
-        avg_mr_orig <- calculate_moving_ranges(data$value)
-        if(!is.na(avg_mr_orig)) {
-          # Standard moving range sigma calculation
-          sigma_orig <- avg_mr_orig / 1.128
-        } else {
-          # Fallback to standard deviation if moving range fails
-          sigma_orig <- safe_sd(data$value)
-        }
-      }
-      
+      sigma_orig <- safe_sd(data$value)
       emp_ucl_orig <- emp_cl_orig + 3 * sigma_orig
       emp_lcl_orig <- emp_cl_orig - 3 * sigma_orig
 
       # Calculate recalculated expectation chart statistics
       if(nrow(data_after) >= 3) {
         emp_cl_recalc <- safe_mean(data_after$value)
-        
-        # Calculate sigma for recalculated segment
-        if(use_autocorr && !is.na(r_lag1)) {
-          # Calculate moving ranges for the after-recalc segment
-          avg_mr_recalc <- calculate_moving_ranges(data_after$value)
-          if(!is.na(avg_mr_recalc) && abs(r_lag1) < 0.999) {  # Avoid division by zero
-            # Apply auto-correlation adjustment formula: σ = R-bar / (d2 * √(1 - r²))
-            sigma_recalc <- avg_mr_recalc / (1.128 * sqrt(1 - r_lag1^2))
-          } else {
-            # Fallback to standard deviation if moving range fails or r is too close to 1
-            sigma_recalc <- safe_sd(data_after$value)
-          }
-        } else {
-          # Standard calculation using moving range method for consistency
-          avg_mr_recalc <- calculate_moving_ranges(data_after$value)
-          if(!is.na(avg_mr_recalc)) {
-            # Standard moving range sigma calculation
-            sigma_recalc <- avg_mr_recalc / 1.128
-          } else {
-            # Fallback to standard deviation if moving range fails
-            sigma_recalc <- safe_sd(data_after$value)
-          }
-        }
-        
+        sigma_recalc <- safe_sd(data_after$value)
         emp_ucl_recalc <- emp_cl_recalc + 3 * sigma_recalc
         emp_lcl_recalc <- emp_cl_recalc - 3 * sigma_recalc
       } else {
@@ -1571,36 +1307,22 @@ server <- function(input, output, session) {
       # Use improved runs analysis for recalculation mode
       data$runs_signal <- detect_runs_signals_recalc(data$value, emp_cl_orig, emp_cl_recalc, data$date, recalc_date)
 
-      # Create annotation data for original limits - HORIZONTAL FORMAT
-      annotation_text_orig <- paste0("Original: UCL = ", round(emp_ucl_orig, 2),
-                                    " | CL = ", round(emp_cl_orig, 2),
-                                    " | LCL = ", round(emp_lcl_orig, 2))
-      if(use_autocorr && !is.na(r_lag1)) {
-        annotation_text_orig <- paste0(annotation_text_orig, 
-                                      " | σ = ", round(sigma_orig, 3), 
-                                      " (autocorr-adjusted, r = ", round(r_lag1, 3), ")")
-      }
-      
+      # Create annotation data for original limits
       annotation_data_orig <- data.frame(
         x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.02,
-        y_pos = emp_ucl_orig + (emp_ucl_orig - emp_lcl_orig) * 0.15,  # Moved higher
-        label = annotation_text_orig
+        y_pos = emp_ucl_orig + (emp_ucl_orig - emp_lcl_orig) * 0.02,
+        label = paste0("Original: UCL = ", round(emp_ucl_orig, 2),
+                      ", CL = ", round(emp_cl_orig, 2),
+                      ", LCL = ", round(emp_lcl_orig, 2))
       )
 
-      # Move recalculated annotation box to the right - HORIZONTAL FORMAT
-      annotation_text_recalc <- paste0("Recalculated (from ", format(recalc_date, "%Y-%m-%d"), "): UCL = ", round(emp_ucl_recalc, 2),
-                                      " | CL = ", round(emp_cl_recalc, 2),
-                                      " | LCL = ", round(emp_lcl_recalc, 2))
-      if(use_autocorr && !is.na(r_lag1)) {
-        annotation_text_recalc <- paste0(annotation_text_recalc, 
-                                        " | σ = ", round(sigma_recalc, 3), 
-                                        " (autocorr-adjusted)")
-      }
-      
+      # Move recalculated annotation box to the right
       annotation_data_recalc <- data.frame(
         x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.55,
         y_pos = emp_lcl_orig - (emp_ucl_orig - emp_lcl_orig) * 0.08,
-        label = annotation_text_recalc
+        label = paste0("Recalculated (from ", format(recalc_date, "%Y-%m-%d"), "): UCL = ", round(emp_ucl_recalc, 2),
+                      ", CL = ", round(emp_cl_recalc, 2),
+                      ", LCL = ", round(emp_lcl_recalc, 2))
       )
 
       # Create annotation data for runs analysis
@@ -1614,31 +1336,7 @@ server <- function(input, output, session) {
       # STANDARD MODE: Original untrended expectation chart
       # IMPROVED: Safe statistical calculations
       emp_cl <- safe_mean(data$value)
-      
-      # Calculate sigma based on whether auto-correlation adjustment is enabled
-      if(use_autocorr && !is.na(r_lag1)) {
-        # Calculate average moving range
-        avg_mr <- calculate_moving_ranges(data$value)
-        if(!is.na(avg_mr) && abs(r_lag1) < 0.999) {  # Avoid division by zero
-          # Apply auto-correlation adjustment formula: σ = R-bar / (d2 * √(1 - r²))
-          # where d2 = 1.128 for moving range of 2 consecutive points
-          sigma <- avg_mr / (1.128 * sqrt(1 - r_lag1^2))
-        } else {
-          # Fallback to standard deviation if moving range calculation fails or r is too close to 1
-          sigma <- safe_sd(data$value)
-        }
-      } else {
-        # Standard calculation using moving range method for consistency
-        avg_mr <- calculate_moving_ranges(data$value)
-        if(!is.na(avg_mr)) {
-          # Standard moving range sigma calculation: σ = R-bar / d2
-          sigma <- avg_mr / 1.128
-        } else {
-          # Fallback to standard deviation if moving range calculation fails
-          sigma <- safe_sd(data$value)
-        }
-      }
-      
+      sigma <- safe_sd(data$value)
       emp_ucl <- emp_cl + 3 * sigma
       emp_lcl <- emp_cl - 3 * sigma
 
@@ -1653,29 +1351,11 @@ server <- function(input, output, session) {
       # Use improved runs analysis
       data$runs_signal <- detect_runs_signals(data$value, rep(emp_cl, nrow(data)), data$date)
 
-      # Create annotation data for limits - HORIZONTAL FORMAT
-      annotation_text <- paste0("UCL = ", round(emp_ucl, 2), " | CL = ", round(emp_cl, 2), " | LCL = ", round(emp_lcl, 2))
-      if(use_autocorr && !is.na(r_lag1)) {
-        # Add auto-correlation information to annotation
-        avg_mr_display <- if(exists("avg_mr") && !is.na(avg_mr)) round(avg_mr, 3) else "N/A"
-        base_sigma <- if(exists("avg_mr") && !is.na(avg_mr)) round(avg_mr / 1.128, 3) else "N/A"
-        annotation_text <- paste0(annotation_text, 
-                                 " | σ = ", round(sigma, 3), 
-                                 " (autocorr-adjusted) | Base σ = ", base_sigma,
-                                 " | r = ", round(r_lag1, 3),
-                                 " | avg MR = ", avg_mr_display)
-      } else {
-        # Show moving range info for standard calculation too
-        avg_mr_display <- if(exists("avg_mr") && !is.na(avg_mr)) round(avg_mr, 3) else "N/A"
-        annotation_text <- paste0(annotation_text, 
-                                 " | σ = ", round(sigma, 3), 
-                                 " (moving range method) | avg MR = ", avg_mr_display)
-      }
-      
+      # Create annotation data for limits
       annotation_data_limits <- data.frame(
         x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.02,
-        y_pos = emp_ucl + (emp_ucl - emp_lcl) * 0.15,  # Moved higher
-        label = annotation_text
+        y_pos = emp_ucl + (emp_ucl - emp_lcl) * 0.02,
+        label = paste0("UCL = ", round(emp_ucl, 2), "<br>CL = ", round(emp_cl, 2), "<br>LCL = ", round(emp_lcl, 2))
       )
 
       # Create annotation data for runs analysis
@@ -1742,21 +1422,19 @@ server <- function(input, output, session) {
       # Vertical line at recalculation point
       geom_vline(xintercept = recalc_date, color = "purple", linetype = "dotted", linewidth = 1.5, alpha = 0.7) +
 
-      # Rich text annotations for both sets of limits - HORIZONTAL FORMAT
+      # Rich text annotations for both sets of limits
       ggtext::geom_richtext(
         data = annotation_data_orig,
         aes(x = x_pos, y = y_pos, label = label),
-        size = 4, color = "black", hjust = 0, vjust = 1,
-        fill = "lightblue", label.color = "black",
-        label.padding = grid::unit(c(0.2, 0.5, 0.2, 0.5), "lines")
+        size = 5, color = "black", hjust = 0, vjust = -1,
+        fill = "lightblue", label.color = "black"
       ) +
 
       ggtext::geom_richtext(
         data = annotation_data_recalc,
         aes(x = x_pos, y = y_pos, label = label),
-        size = 4, color = "black", hjust = 0, vjust = 1,
-        fill = "lightgreen", label.color = "black",
-        label.padding = grid::unit(c(0.2, 0.5, 0.2, 0.5), "lines")
+        size = 5, color = "black", hjust = 0, vjust = 1,
+        fill = "lightgreen", label.color = "black"
       ) +
 
       ggtext::geom_richtext(
@@ -1793,13 +1471,12 @@ server <- function(input, output, session) {
       geom_line(aes(y = emp_ucl), color = "red", linetype = "solid", linewidth = 1) +
       geom_line(aes(y = emp_lcl), color = "red", linetype = "solid", linewidth = 1) +
 
-      # Rich text annotations - HORIZONTAL FORMAT
+      # Rich text annotations
       ggtext::geom_richtext(
         data = annotation_data_limits,
         aes(x = x_pos, y = y_pos, label = label),
-        size = 4, color = "black", hjust = 0, vjust = 1,
-        fill = "lightblue", label.color = "black",
-        label.padding = grid::unit(c(0.2, 0.5, 0.2, 0.5), "lines")
+        size = 5, color = "black", hjust = 0, vjust = 1,
+        fill = "lightblue", label.color = "black"
       ) +
 
       ggtext::geom_richtext(
