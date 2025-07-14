@@ -92,15 +92,15 @@ safe_autocorr <- function(x, lag = 1, na.rm = TRUE) {
 calculate_moving_ranges <- function(values) {
   values <- safe_numeric(values)
   values <- values[!is.na(values)]
-  
+
   if(length(values) < 2) return(NA)
-  
+
   # Calculate moving ranges (absolute difference between consecutive points)
   moving_ranges <- abs(diff(values))
-  
+
   # Return average moving range
   avg_mr <- mean(moving_ranges, na.rm = TRUE)
-  
+
   return(avg_mr)
 }
 
@@ -444,7 +444,7 @@ ui <- fluidPage(
           br(),
           fluidRow(
             column(4,
-              textInput("control_title", "Chart Title:", value = "Rational Expectation Chart")
+              textInput("control_title", "Chart Title:", value = "Expectation Chart")
             ),
             column(4,
               textInput("control_subtitle", "Subtitle:", value = "")
@@ -1476,7 +1476,7 @@ server <- function(input, output, session) {
 
     # Check if auto-correlation adjustment is enabled
     use_autocorr <- !is.null(input$use_autocorr_modifier) && input$use_autocorr_modifier
-    
+
     # Get correlation values if needed
     corr_vals <- if(use_autocorr) correlation_values() else NULL
     r_lag1 <- if(!is.null(corr_vals) && !is.na(corr_vals$r_lag1)) corr_vals$r_lag1 else NA
@@ -1491,7 +1491,7 @@ server <- function(input, output, session) {
 
       # IMPROVED: Calculate original expectation chart statistics with safe functions
       emp_cl_orig <- safe_mean(data$value)
-      
+
       # Calculate sigma based on whether auto-correlation adjustment is enabled
       if(use_autocorr && !is.na(r_lag1)) {
         # Calculate moving ranges for the entire dataset
@@ -1514,14 +1514,14 @@ server <- function(input, output, session) {
           sigma_orig <- safe_sd(data$value)
         }
       }
-      
+
       emp_ucl_orig <- emp_cl_orig + 3 * sigma_orig
       emp_lcl_orig <- emp_cl_orig - 3 * sigma_orig
 
       # Calculate recalculated expectation chart statistics
       if(nrow(data_after) >= 3) {
         emp_cl_recalc <- safe_mean(data_after$value)
-        
+
         # Calculate sigma for recalculated segment
         if(use_autocorr && !is.na(r_lag1)) {
           # Calculate moving ranges for the after-recalc segment
@@ -1544,7 +1544,7 @@ server <- function(input, output, session) {
             sigma_recalc <- safe_sd(data_after$value)
           }
         }
-        
+
         emp_ucl_recalc <- emp_cl_recalc + 3 * sigma_recalc
         emp_lcl_recalc <- emp_cl_recalc - 3 * sigma_recalc
       } else {
@@ -1576,11 +1576,11 @@ server <- function(input, output, session) {
                                     " | CL = ", round(emp_cl_orig, 2),
                                     " | LCL = ", round(emp_lcl_orig, 2))
       if(use_autocorr && !is.na(r_lag1)) {
-        annotation_text_orig <- paste0(annotation_text_orig, 
-                                      " | σ = ", round(sigma_orig, 3), 
+        annotation_text_orig <- paste0(annotation_text_orig,
+                                      " | σ = ", round(sigma_orig, 3),
                                       " (autocorr-adjusted, r = ", round(r_lag1, 3), ")")
       }
-      
+
       annotation_data_orig <- data.frame(
         x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.02,
         y_pos = emp_ucl_orig + (emp_ucl_orig - emp_lcl_orig) * 0.15,  # Moved higher
@@ -1592,11 +1592,11 @@ server <- function(input, output, session) {
                                       " | CL = ", round(emp_cl_recalc, 2),
                                       " | LCL = ", round(emp_lcl_recalc, 2))
       if(use_autocorr && !is.na(r_lag1)) {
-        annotation_text_recalc <- paste0(annotation_text_recalc, 
-                                        " | σ = ", round(sigma_recalc, 3), 
+        annotation_text_recalc <- paste0(annotation_text_recalc,
+                                        " | σ = ", round(sigma_recalc, 3),
                                         " (autocorr-adjusted)")
       }
-      
+
       annotation_data_recalc <- data.frame(
         x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.55,
         y_pos = emp_lcl_orig - (emp_ucl_orig - emp_lcl_orig) * 0.08,
@@ -1614,7 +1614,7 @@ server <- function(input, output, session) {
       # STANDARD MODE: Original untrended expectation chart
       # IMPROVED: Safe statistical calculations
       emp_cl <- safe_mean(data$value)
-      
+
       # Calculate sigma based on whether auto-correlation adjustment is enabled
       if(use_autocorr && !is.na(r_lag1)) {
         # Calculate average moving range
@@ -1638,7 +1638,7 @@ server <- function(input, output, session) {
           sigma <- safe_sd(data$value)
         }
       }
-      
+
       emp_ucl <- emp_cl + 3 * sigma
       emp_lcl <- emp_cl - 3 * sigma
 
@@ -1659,19 +1659,19 @@ server <- function(input, output, session) {
         # Add auto-correlation information to annotation
         avg_mr_display <- if(exists("avg_mr") && !is.na(avg_mr)) round(avg_mr, 3) else "N/A"
         base_sigma <- if(exists("avg_mr") && !is.na(avg_mr)) round(avg_mr / 1.128, 3) else "N/A"
-        annotation_text <- paste0(annotation_text, 
-                                 " | σ = ", round(sigma, 3), 
+        annotation_text <- paste0(annotation_text,
+                                 " | σ = ", round(sigma, 3),
                                  " (autocorr-adjusted) | Base σ = ", base_sigma,
                                  " | r = ", round(r_lag1, 3),
                                  " | avg MR = ", avg_mr_display)
       } else {
         # Show moving range info for standard calculation too
         avg_mr_display <- if(exists("avg_mr") && !is.na(avg_mr)) round(avg_mr, 3) else "N/A"
-        annotation_text <- paste0(annotation_text, 
-                                 " | σ = ", round(sigma, 3), 
+        annotation_text <- paste0(annotation_text,
+                                 " | σ = ", round(sigma, 3),
                                  " (moving range method) | avg MR = ", avg_mr_display)
       }
-      
+
       annotation_data_limits <- data.frame(
         x_pos = min(data$date) + as.numeric(diff(range(data$date))) * 0.02,
         y_pos = emp_ucl + (emp_ucl - emp_lcl) * 0.15,  # Moved higher
